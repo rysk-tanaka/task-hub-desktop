@@ -1,7 +1,10 @@
 # task-hub-desktop
 
+[![lint](https://github.com/rysk-tanaka/task-hub-desktop/actions/workflows/lint.yml/badge.svg)](https://github.com/rysk-tanaka/task-hub-desktop/actions/workflows/lint.yml)
+[![test](https://github.com/rysk-tanaka/task-hub-desktop/actions/workflows/test.yml/badge.svg)](https://github.com/rysk-tanaka/task-hub-desktop/actions/workflows/test.yml)
+
 Obsidian Vaultと同じMarkdownファイルを読み書きするコンパニオンデスクトップアプリ。
-**Tauri v2 + React + Rust** 構成。
+Tauri v2 + React + Rust 構成。
 
 ## 機能
 
