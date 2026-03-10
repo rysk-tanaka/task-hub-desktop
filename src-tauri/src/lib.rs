@@ -12,6 +12,7 @@ use tauri::{AppHandle, Manager, State};
 use tauri_plugin_store::StoreExt;
 
 use task_parser::VaultSummary;
+use vault_watcher::VaultDebouncer;
 
 const STORE_FILE: &str = "settings.json";
 const STORE_KEY_VAULT_ROOT: &str = "vault_root";
@@ -20,6 +21,7 @@ const STORE_KEY_VAULT_ROOT: &str = "vault_root";
 
 struct AppState {
     vault_root: Mutex<Option<PathBuf>>,
+    watcher: Mutex<Option<VaultDebouncer>>,
 }
 
 // ---- Tauriコマンド ----
@@ -36,17 +38,22 @@ async fn set_vault_root(
         return Err(format!("パスが存在しません: {}", path.display()));
     }
 
+    // ファイル監視を先に開始し、失敗時は状態を変更しない
+    let debouncer = vault_watcher::start_watching(&app, path.clone()).map_err(|e| e.to_string())?;
+
     {
         let mut guard = state.vault_root.lock().map_err(|e| e.to_string())?;
         *guard = Some(path.clone());
+    }
+    {
+        let mut guard = state.watcher.lock().map_err(|e| e.to_string())?;
+        *guard = Some(debouncer);
     }
 
     // store に永続化
     let store = app.store(STORE_FILE).map_err(|e| e.to_string())?;
     store.set(STORE_KEY_VAULT_ROOT, path.to_string_lossy().to_string());
 
-    // ファイル監視を開始
-    vault_watcher::start_watching(app, path).map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -133,13 +140,18 @@ fn restore_vault_root(app: &AppHandle) {
         return;
     }
 
-    if let Some(state) = app.try_state::<AppState>() {
-        if let Ok(mut guard) = state.vault_root.lock() {
-            *guard = Some(path.clone());
-        }
+    let Some(state) = app.try_state::<AppState>() else {
+        return;
+    };
+    if let Ok(mut guard) = state.vault_root.lock() {
+        *guard = Some(path.clone());
     }
 
-    let _ = vault_watcher::start_watching(app.clone(), path);
+    if let Ok(debouncer) = vault_watcher::start_watching(app, path) {
+        if let Ok(mut guard) = state.watcher.lock() {
+            *guard = Some(debouncer);
+        }
+    }
 }
 
 // ---- エントリーポイント ----
@@ -154,6 +166,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState {
             vault_root: Mutex::new(None),
+            watcher: Mutex::new(None),
         })
         .setup(|app| {
             restore_vault_root(app.handle());
