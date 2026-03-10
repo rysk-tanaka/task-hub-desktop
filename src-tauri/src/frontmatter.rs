@@ -23,7 +23,7 @@ pub struct ParsedDocument {
 // ────────────────────── パース ──────────────────────
 
 /// Markdownテキストからフロントマターを抽出しパースする。
-/// フロントマターが存在しない場合は None を返す。
+/// フロントマターが存在しない場合、または YAML のパースに失敗した場合は None を返す。
 pub fn parse(content: &str) -> Option<Frontmatter> {
     let (yaml_str, _) = split_raw(content)?;
     serde_yaml::from_str(yaml_str).ok()
