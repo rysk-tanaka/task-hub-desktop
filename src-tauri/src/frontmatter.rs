@@ -143,7 +143,10 @@ impl Frontmatter {
                 .collect(),
             serde_yaml::Value::String(s) => {
                 // カンマ区切りの単一文字列を分割
-                s.split(',').map(|part| part.trim().to_string()).collect()
+                s.split(',')
+                    .map(|part| part.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect()
             }
             _ => Vec::new(),
         }
@@ -185,14 +188,13 @@ pub fn serialize(fm: &Frontmatter) -> Result<String, serde_yaml::Error> {
 
 /// フロントマターと本文を結合して Markdown テキストを生成する
 pub fn to_markdown(fm: &Frontmatter, body: &str) -> Result<String, serde_yaml::Error> {
+    if fm.fields.is_empty() {
+        return Ok(format!("---\n---\n{body}"));
+    }
     let yaml = serialize(fm)?;
     // serde_yaml は末尾に改行を付けるので trim してから組み立てる
     let yaml = yaml.trim_end();
-    if yaml.is_empty() {
-        Ok(format!("---\n---\n{body}"))
-    } else {
-        Ok(format!("---\n{yaml}\n---\n{body}"))
-    }
+    Ok(format!("---\n{yaml}\n---\n{body}"))
 }
 
 /// 既存の Markdown テキストのフロントマターを更新する。
@@ -215,6 +217,9 @@ pub fn update_frontmatter(
         None => Frontmatter::default(),
     };
     updater(&mut fm);
+    if fm.fields.is_empty() {
+        return Ok(doc.body);
+    }
     to_markdown(&fm, &doc.body)
 }
 
@@ -467,6 +472,21 @@ mod tests {
     }
 
     // ── エッジケース ──
+
+    #[test]
+    fn parse_crlf_frontmatter() {
+        let md = "---\r\ntitle: CRLF\r\n---\r\n# Body";
+        let fm = parse(md).expect("should parse CRLF");
+        assert_eq!(fm.get_str("title"), Some("CRLF"));
+    }
+
+    #[test]
+    fn parse_document_crlf() {
+        let md = "---\r\ntitle: CRLF\r\n---\r\n# Body\r\nLine 2";
+        let doc = parse_document(md);
+        assert!(doc.frontmatter.is_some());
+        assert_eq!(doc.body, "# Body\r\nLine 2");
+    }
 
     #[test]
     fn parse_multiline_values() {
