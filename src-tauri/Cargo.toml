@@ -52,5 +52,8 @@ missing_panics_doc = "allow"
 # expand() / start_watching() は将来のエラー返却に備えて Result を維持
 unnecessary_wraps = "allow"
 
+[dev-dependencies]
+tempfile = "3"
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

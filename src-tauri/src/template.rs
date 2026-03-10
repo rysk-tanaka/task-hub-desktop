@@ -195,4 +195,94 @@ mod tests {
         // コードブロック内は展開されない
         assert!(result.contains("<% tp.date.now(\"YYYY\") %>"));
     }
+
+    // ---- eval_expr ----
+
+    #[test]
+    fn eval_file_title() {
+        let today = date(2026, 3, 10);
+        let result = eval_expr("tp.file.title", "2026-03-10", today).unwrap();
+        assert_eq!(result, "2026-03-10");
+    }
+
+    #[test]
+    fn eval_date_now() {
+        let today = date(2026, 3, 10);
+        let result = eval_expr("tp.date.now(\"YYYY-MM-DD\")", "title", today).unwrap();
+        assert_eq!(result, "2026-03-10");
+    }
+
+    #[test]
+    fn eval_date_now_with_literal_bracket() {
+        let today = date(2026, 3, 10);
+        let result = eval_expr("tp.date.now(\"YYYY-[W]ww\")", "title", today).unwrap();
+        assert_eq!(result, "2026-W11");
+    }
+
+    #[test]
+    fn eval_date_weekday_basic() {
+        let today = date(2026, 3, 10); // Tuesday
+        // weekday=1 (Monday) of current week
+        let result = eval_expr("tp.date.weekday(\"YYYY-MM-DD\", 1)", "t", today).unwrap();
+        assert_eq!(result, "2026-03-09");
+    }
+
+    #[test]
+    fn eval_date_weekday_with_offset() {
+        let today = date(2026, 3, 10); // Tuesday
+        // weekday=1 (Monday), week_offset=1 → next Monday
+        let result = eval_expr("tp.date.weekday(\"YYYY-MM-DD\", 1, 1)", "t", today).unwrap();
+        assert_eq!(result, "2026-03-16");
+    }
+
+    #[test]
+    fn eval_unknown_syntax_returns_error() {
+        let today = date(2026, 3, 10);
+        let result = eval_expr("tp.unknown()", "t", today);
+        assert!(result.is_err());
+    }
+
+    // ---- expand ----
+
+    #[test]
+    fn expand_mixed_template() {
+        // expand() uses Local::now(), so we just verify structural behavior
+        let tmpl = "# <% tp.file.title %>\n\nBody text";
+        let result = expand(tmpl, "MyNote").unwrap();
+        assert!(result.starts_with("# MyNote\n"));
+        assert!(result.contains("Body text"));
+    }
+
+    #[test]
+    fn expand_no_template_expressions() {
+        let tmpl = "# Plain markdown\n\n- item 1\n- item 2\n";
+        let result = expand(tmpl, "title").unwrap();
+        assert_eq!(result, tmpl);
+    }
+
+    #[test]
+    fn expand_unknown_syntax_preserved() {
+        let tmpl = "# <% tp.unknown.call() %>";
+        let result = expand(tmpl, "t").unwrap();
+        // Unknown syntax should be preserved as-is
+        assert!(result.contains("<% tp.unknown.call() %>"));
+    }
+
+    #[test]
+    fn expand_multiple_code_blocks() {
+        let tmpl = "```tasks\n<% tp.file.title %>\n```\n\n<% tp.file.title %>\n\n```dataview\n<% tp.date.now(\"YYYY\") %>\n```";
+        let result = expand(tmpl, "Note").unwrap();
+        // Code blocks preserved
+        assert!(result.contains("```tasks\n<% tp.file.title %>\n```"));
+        assert!(result.contains("```dataview\n<% tp.date.now(\"YYYY\") %>\n```"));
+        // Outside code blocks, expanded
+        assert!(result.contains("\n\nNote\n\n"));
+    }
+
+    // ---- moment_to_chrono additional ----
+
+    #[test]
+    fn test_moment_ddd_weekday_abbr() {
+        assert_eq!(moment_to_chrono("ddd"), "%a");
+    }
 }

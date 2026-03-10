@@ -61,3 +61,91 @@ fn default_template(kind: &crate::NoteKind, title: &str) -> String {
         ),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn default_template_daily() {
+        let result = default_template(&crate::NoteKind::Daily, "2026-03-10");
+        assert!(result.starts_with("# 2026-03-10"));
+        assert!(result.contains("## ログ"));
+        assert!(result.contains("## 振り返り"));
+    }
+
+    #[test]
+    fn default_template_weekly() {
+        let result = default_template(&crate::NoteKind::Weekly, "2026-W11");
+        assert!(result.starts_with("# 2026-W11"));
+        assert!(result.contains("## 振り返り"));
+        // Weekly should not have ログ section
+        assert!(!result.contains("## ログ"));
+    }
+
+    #[test]
+    fn create_daily_note_without_template() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let vault = tmp.path();
+
+        // No template file → uses default_template
+        let (path, created) = create_note(vault, &crate::NoteKind::Daily).expect("create");
+        assert!(created);
+        assert!(path.exists());
+        assert!(path.starts_with(vault.join("50_Daily")));
+        assert!(path.extension().and_then(|s| s.to_str()) == Some("md"));
+
+        let content = fs::read_to_string(&path).expect("read");
+        assert!(content.contains("## ログ"));
+    }
+
+    #[test]
+    fn create_daily_note_returns_existing() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let vault = tmp.path();
+
+        let (path1, created1) = create_note(vault, &crate::NoteKind::Daily).expect("create");
+        assert!(created1);
+
+        let (path2, created2) = create_note(vault, &crate::NoteKind::Daily).expect("create");
+        assert!(!created2);
+        assert_eq!(path1, path2);
+    }
+
+    #[test]
+    fn create_weekly_note_without_template() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let vault = tmp.path();
+
+        let (path, created) = create_note(vault, &crate::NoteKind::Weekly).expect("create");
+        assert!(created);
+        assert!(path.starts_with(vault.join("60_Weekly")));
+
+        let content = fs::read_to_string(&path).expect("read");
+        assert!(content.contains("## 振り返り"));
+    }
+
+    #[test]
+    fn create_note_with_template_file() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let vault = tmp.path();
+
+        // Create a template
+        let tmpl_dir = vault.join("Templates");
+        fs::create_dir_all(&tmpl_dir).expect("mkdir");
+        fs::write(
+            tmpl_dir.join("daily-template.md"),
+            "# <% tp.file.title %>\n\nCustom template\n",
+        )
+        .expect("write template");
+
+        let (path, created) = create_note(vault, &crate::NoteKind::Daily).expect("create");
+        assert!(created);
+
+        let content = fs::read_to_string(&path).expect("read");
+        assert!(content.contains("Custom template"));
+        // tp.file.title should have been expanded to today's date
+        assert!(!content.contains("tp.file.title"));
+    }
+}

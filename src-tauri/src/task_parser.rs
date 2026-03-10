@@ -197,3 +197,198 @@ pub fn build_vault_summary(vault_root: &Path) -> anyhow::Result<VaultSummary> {
         projects,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    // ---- parse_tasks ----
+
+    #[test]
+    fn parse_simple_todo() {
+        let md = "- [ ] Buy milk\n";
+        let tasks = parse_tasks(md, "test.md");
+        assert_eq!(tasks.len(), 1);
+        assert_eq!(tasks[0].text, "Buy milk");
+        assert_eq!(tasks[0].status, TaskStatus::Todo);
+        assert_eq!(tasks[0].line, 1);
+        assert_eq!(tasks[0].source_file, "test.md");
+    }
+
+    #[test]
+    fn parse_all_statuses() {
+        let md = "\
+- [ ] todo
+- [x] done
+- [X] done upper
+- [/] in progress
+- [?] waiting
+- [-] cancelled
+";
+        let tasks = parse_tasks(md, "s.md");
+        assert_eq!(tasks.len(), 6);
+        assert_eq!(tasks[0].status, TaskStatus::Todo);
+        assert_eq!(tasks[1].status, TaskStatus::Done);
+        assert_eq!(tasks[2].status, TaskStatus::Done);
+        assert_eq!(tasks[3].status, TaskStatus::InProgress);
+        assert_eq!(tasks[4].status, TaskStatus::Waiting);
+        assert_eq!(tasks[5].status, TaskStatus::Cancelled);
+    }
+
+    #[test]
+    fn parse_due_and_done_dates() {
+        let md = "- [x] Task 📅 2026-03-10 ✅ 2026-03-10\n";
+        let tasks = parse_tasks(md, "d.md");
+        assert_eq!(tasks.len(), 1);
+        assert_eq!(
+            tasks[0].due,
+            Some(NaiveDate::from_ymd_opt(2026, 3, 10).expect("valid date"))
+        );
+        assert_eq!(
+            tasks[0].done_date,
+            Some(NaiveDate::from_ymd_opt(2026, 3, 10).expect("valid date"))
+        );
+        assert!(tasks[0].start.is_none());
+    }
+
+    #[test]
+    fn parse_start_date() {
+        let md = "- [ ] Task 🛫 2026-04-01\n";
+        let tasks = parse_tasks(md, "s.md");
+        assert_eq!(
+            tasks[0].start,
+            Some(NaiveDate::from_ymd_opt(2026, 4, 1).expect("valid date"))
+        );
+    }
+
+    #[test]
+    fn parse_scheduled_date_not_assigned() {
+        let md = "- [ ] Task ⏳ 2026-05-01\n";
+        let tasks = parse_tasks(md, "s.md");
+        assert_eq!(tasks.len(), 1);
+        assert!(tasks[0].due.is_none());
+        assert!(tasks[0].start.is_none());
+    }
+
+    #[test]
+    fn parse_text_strips_date_metadata() {
+        let md = "- [ ] Buy milk 📅 2026-03-10\n";
+        let tasks = parse_tasks(md, "t.md");
+        assert_eq!(tasks[0].text, "Buy milk");
+    }
+
+    #[test]
+    fn parse_indented_task() {
+        let md = "    - [ ] Sub task\n";
+        let tasks = parse_tasks(md, "t.md");
+        assert_eq!(tasks.len(), 1);
+        assert_eq!(tasks[0].text, "Sub task");
+    }
+
+    #[test]
+    fn parse_no_tasks() {
+        let md = "# Heading\n\nJust text\n";
+        let tasks = parse_tasks(md, "t.md");
+        assert!(tasks.is_empty());
+    }
+
+    #[test]
+    fn parse_multiple_lines_with_line_numbers() {
+        let md = "# Project\n- [ ] First\n- [x] Second\nSome text\n- [/] Third\n";
+        let tasks = parse_tasks(md, "p.md");
+        assert_eq!(tasks.len(), 3);
+        assert_eq!(tasks[0].line, 2);
+        assert_eq!(tasks[1].line, 3);
+        assert_eq!(tasks[2].line, 5);
+    }
+
+    // ---- build_vault_summary ----
+
+    fn create_test_vault(dir: &Path) {
+        let inbox = dir.join("00_Inbox");
+        let projects = dir.join("10_Projects");
+        let templates = dir.join("Templates");
+        let archive = dir.join("40_Archive");
+
+        for d in [&inbox, &projects, &templates, &archive] {
+            fs::create_dir_all(d).expect("create dir");
+        }
+
+        fs::write(
+            inbox.join("inbox.md"),
+            "- [ ] Inbox task 1\n- [ ] Inbox task 2\n- [x] Inbox done\n",
+        )
+        .expect("write inbox");
+
+        fs::write(
+            projects.join("MyProject.md"),
+            "- [x] Step 1\n- [x] Step 2\n- [ ] Step 3\n- [ ] Step 4\n",
+        )
+        .expect("write project");
+
+        // Should be excluded from scanning
+        fs::write(templates.join("tmpl.md"), "- [ ] Template task\n").expect("write template");
+        fs::write(archive.join("old.md"), "- [ ] Archived task\n").expect("write archive");
+    }
+
+    #[test]
+    fn build_summary_inbox_count() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        create_test_vault(tmp.path());
+
+        let summary = build_vault_summary(tmp.path()).expect("summary");
+        assert_eq!(summary.inbox_count, 2);
+    }
+
+    #[test]
+    fn build_summary_projects() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        create_test_vault(tmp.path());
+
+        let summary = build_vault_summary(tmp.path()).expect("summary");
+        assert_eq!(summary.projects.len(), 1);
+        let proj = &summary.projects[0];
+        assert_eq!(proj.name, "MyProject");
+        assert_eq!(proj.completed, 2);
+        assert_eq!(proj.total, 4);
+        assert_eq!(proj.percent, 50);
+    }
+
+    #[test]
+    fn build_summary_excludes_templates_and_archive() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        create_test_vault(tmp.path());
+
+        let summary = build_vault_summary(tmp.path()).expect("summary");
+        // inbox_count should not include Templates/Archive tasks
+        // (only 2 from 00_Inbox, not 4)
+        assert_eq!(summary.inbox_count, 2);
+    }
+
+    #[test]
+    fn build_summary_empty_vault() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let summary = build_vault_summary(tmp.path()).expect("summary");
+        assert_eq!(summary.inbox_count, 0);
+        assert!(summary.projects.is_empty());
+        assert!(summary.due_today.is_empty());
+        assert!(summary.overdue.is_empty());
+    }
+
+    #[test]
+    fn build_summary_overdue_tasks() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let dir = tmp.path().join("00_Inbox");
+        fs::create_dir_all(&dir).expect("create dir");
+        fs::write(
+            dir.join("tasks.md"),
+            "- [ ] Overdue 📅 2020-01-01\n- [ ] Future 📅 2099-12-31\n",
+        )
+        .expect("write");
+
+        let summary = build_vault_summary(tmp.path()).expect("summary");
+        assert_eq!(summary.overdue.len(), 1);
+        assert_eq!(summary.overdue[0].text, "Overdue");
+    }
+}
