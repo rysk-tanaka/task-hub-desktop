@@ -21,6 +21,11 @@
       "csp": null
     }
   },
+  "plugins": {
+    "shell": {
+      "open": "^((mailto:\\w+)|(tel:\\w+)|(https?://\\w+)|(obsidian://\\w+)).+"
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",

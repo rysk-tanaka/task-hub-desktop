@@ -12,6 +12,7 @@ tauri = { version = "2", features = [] }
 tauri-plugin-shell = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-store = "2"         # Vaultパス等の設定永続化
+tauri-plugin-dialog = "2"        # フォルダ選択ダイアログ
 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

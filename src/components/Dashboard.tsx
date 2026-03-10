@@ -1,5 +1,6 @@
 // components/Dashboard.tsx
-import { open } from "@tauri-apps/plugin-dialog";
+import { open, ask } from "@tauri-apps/plugin-dialog";
+import { open as shellOpen } from "@tauri-apps/plugin-shell";
 import { useVault } from "../hooks/useVault";
 import type { ProjectProgress, Task } from "../types";
 
@@ -114,7 +115,7 @@ function ProjectRow({ project }: { project: ProjectProgress }) {
 // ---- メインダッシュボード ----
 
 export function Dashboard() {
-  const { vaultRoot, summary, loading, error, setVaultRoot, createNote } = useVault();
+  const { vaultRoot, summary, loading, error, setError, setVaultRoot, createNote } = useVault();
 
   async function handleSelectVault() {
     const selected = await open({ directory: true, multiple: false });
@@ -126,11 +127,18 @@ export function Dashboard() {
   async function handleCreateNote(kind: "daily" | "weekly") {
     try {
       const res = await createNote(kind);
-      // Obsidianで開く（obsidian://open URLスキーム）
-      const url = `obsidian://open?path=${encodeURIComponent(res.path)}`;
-      window.open(url, "_blank");
+      const label = kind === "daily" ? "Daily Note" : "Weekly Note";
+      const status = res.created ? "を作成しました" : "は既に存在します";
+      const confirmed = await ask(
+        `${label}${status}。\n${res.path}\n\nObsidian で開きますか？`,
+        { title: label, kind: "info", okLabel: "開く", cancelLabel: "閉じる" },
+      );
+      if (confirmed) {
+        const url = `obsidian://open?path=${encodeURIComponent(res.path)}`;
+        await shellOpen(url);
+      }
     } catch (e) {
-      console.error(e);
+      setError(String(e));
     }
   }
 
@@ -154,7 +162,7 @@ export function Dashboard() {
       {/* ヘッダー */}
       <header style={styles.header}>
         <div>
-          <h1 style={styles.title}>Vault Companion</h1>
+          <h1 style={styles.title}>Task Hub</h1>
           <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
             {vaultRoot}
           </div>

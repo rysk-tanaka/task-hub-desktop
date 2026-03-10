@@ -68,6 +68,7 @@ export function useVault() {
     summary,
     loading,
     error,
+    setError,
     setVaultRoot,
     createNote,
     refreshSummary,
