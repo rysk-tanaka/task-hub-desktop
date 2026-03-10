@@ -81,7 +81,7 @@ fn find_closing_delimiter(content: &str) -> Option<usize> {
         pos += line.len();
     }
     // 最終行が改行なしで `---` で終わる場合
-    if content[pos..].trim_end() == "---" {
+    if content[pos..].trim_end_matches(['\n', '\r']) == "---" {
         return Some(pos);
     }
     None
@@ -186,6 +186,9 @@ pub fn serialize(fm: &Frontmatter) -> Result<String, serde_yaml::Error> {
 
 /// フロントマターと本文を結合して Markdown テキストを生成する
 pub fn to_markdown(fm: &Frontmatter, body: &str) -> Result<String, serde_yaml::Error> {
+    if fm.fields.is_empty() {
+        return Ok(format!("---\n---\n{body}"));
+    }
     let yaml = serialize(fm)?;
     // serde_yaml は末尾に改行を付けるので trim してから組み立てる
     let yaml = yaml.trim_end();
