@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 /// Markdownファイルの YAML フロントマターを表す
+#[allow(dead_code)]
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct Frontmatter {
     #[serde(flatten)]
@@ -11,6 +12,7 @@ pub struct Frontmatter {
 
 /// Markdownテキストからフロントマターを抽出しパースする。
 /// フロントマターが存在しない場合は None を返す。
+#[allow(dead_code)]
 pub fn parse(content: &str) -> Option<Frontmatter> {
     let content = content.trim_start();
     if !content.starts_with("---") {

@@ -16,6 +16,7 @@ use thiserror::Error;
 pub enum TemplateError {
     #[error("不明なTemplater構文: {0}")]
     UnknownSyntax(String),
+    #[allow(dead_code)]
     #[error("日付フォーマットエラー: {0}")]
     FormatError(String),
 }
@@ -23,10 +24,12 @@ pub enum TemplateError {
 static TEMPLATE_RE: OnceLock<Regex> = OnceLock::new();
 static CODE_BLOCK_RE: OnceLock<Regex> = OnceLock::new();
 
+#[allow(clippy::unwrap_used)]
 fn template_re() -> &'static Regex {
     TEMPLATE_RE.get_or_init(|| Regex::new(r"<%\s*(.+?)\s*%>").unwrap())
 }
 
+#[allow(clippy::unwrap_used)]
 fn code_block_re() -> &'static Regex {
     CODE_BLOCK_RE.get_or_init(|| Regex::new(r"(?s)```[a-z]*\n.*?```").unwrap())
 }
@@ -36,6 +39,7 @@ fn code_block_re() -> &'static Regex {
 ///
 /// YYYY → %Y, MM → %m, DD → %d, ww → ISO週番号(%V)
 /// [W] のようなリテラルブラケットは除去して文字として扱う
+#[allow(clippy::unwrap_used)]
 fn moment_to_chrono(fmt: &str) -> String {
     // [TEXT] → TEXT のリテラル展開を先に処理
     let re_literal = Regex::new(r"\[([^\]]*)\]").unwrap();
@@ -93,6 +97,7 @@ fn eval_expr(expr: &str, file_title: &str, today: NaiveDate) -> Result<String, T
         let args_str = rest.trim_end_matches(')');
 
         // 引数をパース: "FORMAT", weekday [, week_offset]
+        #[allow(clippy::unwrap_used)]
         let re_args =
             Regex::new(r#"["']([^"']+)["'],\s*(-?\d+)(?:,\s*(-?\d+))?"#).unwrap();
         let Some(caps) = re_args.captures(args_str) else {

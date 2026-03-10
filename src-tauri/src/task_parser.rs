@@ -46,6 +46,7 @@ pub struct ProjectProgress {
 static TASK_RE: OnceLock<Regex> = OnceLock::new();
 static DATE_RE: OnceLock<Regex> = OnceLock::new();
 
+#[allow(clippy::unwrap_used)]
 fn task_regex() -> &'static Regex {
     TASK_RE.get_or_init(|| {
         // - [x] タスク名 📅 2026-03-07 ✅ 2026-03-07
@@ -53,6 +54,7 @@ fn task_regex() -> &'static Regex {
     })
 }
 
+#[allow(clippy::unwrap_used)]
 fn date_regex() -> &'static Regex {
     DATE_RE.get_or_init(|| {
         // 📅 2026-03-07 / ✅ 2026-03-07 / 🛫 2026-03-07
