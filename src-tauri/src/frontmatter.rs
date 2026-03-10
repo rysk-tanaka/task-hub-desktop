@@ -80,10 +80,6 @@ fn find_closing_delimiter(content: &str) -> Option<usize> {
         }
         pos += line.len();
     }
-    // 最終行が改行なしで `---` で終わる場合
-    if content[pos..].trim_end_matches(['\n', '\r']) == "---" {
-        return Some(pos);
-    }
     None
 }
 
@@ -211,7 +207,7 @@ pub fn update_frontmatter(
         Some(fm) => fm,
         None if doc.raw_yaml.is_some() => {
             return Err(serde_yaml::Error::custom(
-                "invalid YAML frontmatter detected; update_frontmatter will not overwrite it",
+                "unparseable frontmatter detected; refusing to overwrite",
             ));
         }
         None => Frontmatter::default(),
