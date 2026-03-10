@@ -134,11 +134,11 @@ impl Frontmatter {
         match val {
             serde_yaml::Value::Sequence(seq) => seq
                 .iter()
-                .map(|v| match v {
-                    serde_yaml::Value::String(s) => s.clone(),
-                    serde_yaml::Value::Number(n) => n.to_string(),
-                    serde_yaml::Value::Bool(b) => b.to_string(),
-                    _ => String::new(),
+                .filter_map(|v| match v {
+                    serde_yaml::Value::String(s) => Some(s.clone()),
+                    serde_yaml::Value::Number(n) => Some(n.to_string()),
+                    serde_yaml::Value::Bool(b) => Some(b.to_string()),
+                    _ => None,
                 })
                 .collect(),
             serde_yaml::Value::String(s) => {
@@ -185,13 +185,14 @@ pub fn serialize(fm: &Frontmatter) -> Result<String, serde_yaml::Error> {
 
 /// フロントマターと本文を結合して Markdown テキストを生成する
 pub fn to_markdown(fm: &Frontmatter, body: &str) -> Result<String, serde_yaml::Error> {
-    if fm.fields.is_empty() {
-        return Ok(format!("---\n---\n{body}"));
-    }
     let yaml = serialize(fm)?;
     // serde_yaml は末尾に改行を付けるので trim してから組み立てる
     let yaml = yaml.trim_end();
-    Ok(format!("---\n{yaml}\n---\n{body}"))
+    if yaml.is_empty() {
+        Ok(format!("---\n---\n{body}"))
+    } else {
+        Ok(format!("---\n{yaml}\n---\n{body}"))
+    }
 }
 
 /// 既存の Markdown テキストのフロントマターを更新する。
