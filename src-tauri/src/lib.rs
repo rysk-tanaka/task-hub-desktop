@@ -8,9 +8,13 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
+use tauri_plugin_store::StoreExt;
 
 use task_parser::VaultSummary;
+
+const STORE_FILE: &str = "settings.json";
+const STORE_KEY_VAULT_ROOT: &str = "vault_root";
 
 // ---- アプリ状態 ----
 
@@ -36,6 +40,10 @@ async fn set_vault_root(
         let mut guard = state.vault_root.lock().map_err(|e| e.to_string())?;
         *guard = Some(path.clone());
     }
+
+    // store に永続化
+    let store = app.store(STORE_FILE).map_err(|e| e.to_string())?;
+    store.set(STORE_KEY_VAULT_ROOT, path.to_string_lossy().to_string());
 
     // ファイル監視を開始
     vault_watcher::start_watching(app, path).map_err(|e| e.to_string())?;
@@ -107,6 +115,33 @@ async fn create_note(
         })
 }
 
+// ---- 起動時復元 ----
+
+/// store から前回の Vault パスを復元し、存在すればメモリ + ファイル監視を開始する
+fn restore_vault_root(app: &AppHandle) {
+    let Ok(store) = app.store(STORE_FILE) else {
+        return;
+    };
+    let Some(val) = store.get(STORE_KEY_VAULT_ROOT) else {
+        return;
+    };
+    let Ok(path_str) = serde_json::from_value::<String>(val) else {
+        return;
+    };
+    let path = PathBuf::from(&path_str);
+    if !path.exists() {
+        return;
+    }
+
+    if let Some(state) = app.try_state::<AppState>() {
+        if let Ok(mut guard) = state.vault_root.lock() {
+            *guard = Some(path.clone());
+        }
+    }
+
+    let _ = vault_watcher::start_watching(app.clone(), path);
+}
+
 // ---- エントリーポイント ----
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -119,6 +154,10 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState {
             vault_root: Mutex::new(None),
+        })
+        .setup(|app| {
+            restore_vault_root(app.handle());
+            Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             set_vault_root,
