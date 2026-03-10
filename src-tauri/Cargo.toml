@@ -17,6 +17,7 @@ tauri-plugin-dialog = "2"        # フォルダ選択ダイアログ
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml = "0.9"
+indexmap = { version = "2", features = ["serde"] }
 
 notify = "6"                     # ファイル監視
 notify-debouncer-mini = "0.4"    # デバウンス付きファイル監視

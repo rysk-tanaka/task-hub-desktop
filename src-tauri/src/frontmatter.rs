@@ -1,12 +1,12 @@
-use std::collections::HashMap;
-
+use indexmap::IndexMap;
+use serde::de::Error as _;
 use serde::{Deserialize, Serialize};
 
 /// Markdownファイルの YAML フロントマターを表す
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct Frontmatter {
     #[serde(flatten)]
-    pub fields: HashMap<String, serde_yaml::Value>,
+    pub fields: IndexMap<String, serde_yaml::Value>,
 }
 
 /// フロントマターの解析結果。本文との分離も含む。
@@ -16,7 +16,7 @@ pub struct ParsedDocument {
     pub frontmatter: Option<Frontmatter>,
     /// フロントマター以降の本文（先頭改行を除く）
     pub body: String,
-    /// フロントマターの生 YAML 文字列（再シリアライズ用）
+    /// フロントマターの生 YAML 文字列（解析時点のそのままの内容）
     pub raw_yaml: Option<String>,
 }
 
@@ -30,10 +30,10 @@ pub fn parse(content: &str) -> Option<Frontmatter> {
 }
 
 /// Markdown テキストをフロントマター部と本文開始位置に分離する。
-/// 返り値は `(yaml 部分の &str, 閉じ `---` 直後のバイトオフセット)` 。
+/// 返り値は `(yaml 部分の &str, 閉じ "---" 直後のバイトオフセット)` 。
 ///
 /// フロントマターとして認識する条件:
-///   - BOM を除いた先頭が `---\n` で始まる（インデント不可）
+///   - BOM を除いた先頭が `---` で始まり、その直後が LF または CRLF（インデント不可）
 ///   - 行頭の `---` で閉じられている
 fn split_raw(content: &str) -> Option<(&str, usize)> {
     // BOM 除去（バイトオフセットを保持するため長さの差で計算）
@@ -136,7 +136,10 @@ impl Frontmatter {
                 .iter()
                 .map(|v| match v {
                     serde_yaml::Value::String(s) => s.clone(),
-                    other => format!("{other:?}"),
+                    other => serde_yaml::to_string(other)
+                        .unwrap_or_default()
+                        .trim()
+                        .to_string(),
                 })
                 .collect(),
             serde_yaml::Value::String(s) => {
@@ -170,7 +173,7 @@ impl Frontmatter {
 
     /// フィールドを削除する
     pub fn remove(&mut self, key: &str) -> Option<serde_yaml::Value> {
-        self.fields.remove(key)
+        self.fields.shift_remove(key)
     }
 }
 
@@ -191,12 +194,23 @@ pub fn to_markdown(fm: &Frontmatter, body: &str) -> Result<String, serde_yaml::E
 
 /// 既存の Markdown テキストのフロントマターを更新する。
 /// フロントマターが存在しなければ先頭に追加する。
+///
+/// フロントマターの区切り行は存在するが YAML として壊れている場合は、
+/// 元の内容を保護するために Err を返す。
 pub fn update_frontmatter(
     content: &str,
     updater: impl FnOnce(&mut Frontmatter),
 ) -> Result<String, serde_yaml::Error> {
     let doc = parse_document(content);
-    let mut fm = doc.frontmatter.unwrap_or_default();
+    let mut fm = match doc.frontmatter {
+        Some(fm) => fm,
+        None if doc.raw_yaml.is_some() => {
+            return Err(serde_yaml::Error::custom(
+                "invalid YAML frontmatter detected; update_frontmatter will not overwrite it",
+            ));
+        }
+        None => Frontmatter::default(),
+    };
     updater(&mut fm);
     to_markdown(&fm, &doc.body)
 }
@@ -437,6 +451,16 @@ mod tests {
         assert!(result.contains("title: Keep"));
         assert!(result.contains("published: true"));
         assert!(result.contains("# Body"));
+    }
+
+    #[test]
+    fn update_rejects_invalid_yaml() {
+        // 区切り行はあるが YAML として壊れている場合はエラーを返す
+        let md = "---\n: invalid: yaml: [broken\n---\n# Body";
+        let result = update_frontmatter(md, |fm| {
+            fm.set_str("title", "Should fail");
+        });
+        assert!(result.is_err());
     }
 
     // ── エッジケース ──
