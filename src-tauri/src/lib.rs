@@ -1,0 +1,129 @@
+mod frontmatter;
+mod note_creator;
+mod task_parser;
+mod template;
+mod vault_watcher;
+
+use std::path::PathBuf;
+use std::sync::Mutex;
+
+use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, Manager, State};
+
+use task_parser::VaultSummary;
+
+// ---- アプリ状態 ----
+
+pub struct AppState {
+    pub vault_root: Mutex<Option<PathBuf>>,
+}
+
+// ---- Tauriコマンド ----
+
+/// Vaultのルートパスを設定する
+#[tauri::command]
+pub async fn set_vault_root(
+    path: String,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<(), String> {
+    let path = PathBuf::from(&path);
+    if !path.exists() {
+        return Err(format!("パスが存在しません: {path:?}"));
+    }
+
+    {
+        let mut guard = state.vault_root.lock().unwrap();
+        *guard = Some(path.clone());
+    }
+
+    // ファイル監視を開始
+    vault_watcher::start_watching(app, path).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// 現在設定されているVaultルートを返す
+#[tauri::command]
+pub fn get_vault_root(state: State<'_, AppState>) -> Option<String> {
+    state
+        .vault_root
+        .lock()
+        .unwrap()
+        .as_ref()
+        .map(|p| p.to_string_lossy().to_string())
+}
+
+/// GTDサマリー（Inbox件数・期限タスク・プロジェクト進捗）を返す
+#[tauri::command]
+pub async fn get_vault_summary(state: State<'_, AppState>) -> Result<VaultSummary, String> {
+    let vault_root = state
+        .vault_root
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or("Vaultが設定されていません")?;
+
+    task_parser::build_vault_summary(&vault_root).map_err(|e| e.to_string())
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateNoteRequest {
+    pub kind: NoteKind,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NoteKind {
+    Daily,
+    Weekly,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateNoteResponse {
+    /// 作成または既存のファイルの絶対パス
+    pub path: String,
+    /// true = 新規作成, false = 既存ファイル
+    pub created: bool,
+}
+
+/// Daily / Weekly Note を生成する（既存なら既存パスを返す）
+#[tauri::command]
+pub async fn create_note(
+    request: CreateNoteRequest,
+    state: State<'_, AppState>,
+) -> Result<CreateNoteResponse, String> {
+    let vault_root = state
+        .vault_root
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or("Vaultが設定されていません")?;
+
+    note_creator::create_note(&vault_root, request.kind)
+        .map_err(|e| e.to_string())
+        .map(|(path, created)| CreateNoteResponse {
+            path: path.to_string_lossy().to_string(),
+            created,
+        })
+}
+
+// ---- エントリーポイント ----
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_store::Builder::default().build())
+        .manage(AppState {
+            vault_root: Mutex::new(None),
+        })
+        .invoke_handler(tauri::generate_handler![
+            set_vault_root,
+            get_vault_root,
+            get_vault_summary,
+            create_note,
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
