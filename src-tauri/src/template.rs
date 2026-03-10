@@ -43,10 +43,10 @@ fn moment_to_chrono(fmt: &str) -> String {
 
     fmt.replace("YYYY", "%Y")
         .replace("MM", "%m")
+        .replace("DDD", "%j")   // DD より先に処理（DD に巻き込まれないように）
         .replace("DD", "%d")
         .replace("ww", "%V")    // ISO週番号
         .replace("ddd", "%a")
-        .replace("DDD", "%j")
 }
 
 /// 週番号・曜日オフセットから NaiveDate を計算する。
@@ -284,5 +284,10 @@ mod tests {
     #[test]
     fn test_moment_ddd_weekday_abbr() {
         assert_eq!(moment_to_chrono("ddd"), "%a");
+    }
+
+    #[test]
+    fn test_moment_day_of_year() {
+        assert_eq!(moment_to_chrono("DDD"), "%j");
     }
 }
