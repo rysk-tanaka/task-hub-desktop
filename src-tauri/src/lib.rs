@@ -8,21 +8,21 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, State};
 
 use task_parser::VaultSummary;
 
 // ---- アプリ状態 ----
 
-pub struct AppState {
-    pub vault_root: Mutex<Option<PathBuf>>,
+struct AppState {
+    vault_root: Mutex<Option<PathBuf>>,
 }
 
 // ---- Tauriコマンド ----
 
 /// Vaultのルートパスを設定する
 #[tauri::command]
-pub async fn set_vault_root(
+async fn set_vault_root(
     path: String,
     state: State<'_, AppState>,
     app: AppHandle,
@@ -44,7 +44,7 @@ pub async fn set_vault_root(
 
 /// 現在設定されているVaultルートを返す
 #[tauri::command]
-pub fn get_vault_root(state: State<'_, AppState>) -> Option<String> {
+fn get_vault_root(state: State<'_, AppState>) -> Option<String> {
     state
         .vault_root
         .lock()
@@ -55,7 +55,7 @@ pub fn get_vault_root(state: State<'_, AppState>) -> Option<String> {
 
 /// GTDサマリー（Inbox件数・期限タスク・プロジェクト進捗）を返す
 #[tauri::command]
-pub async fn get_vault_summary(state: State<'_, AppState>) -> Result<VaultSummary, String> {
+async fn get_vault_summary(state: State<'_, AppState>) -> Result<VaultSummary, String> {
     let vault_root = state
         .vault_root
         .lock()
@@ -67,28 +67,28 @@ pub async fn get_vault_summary(state: State<'_, AppState>) -> Result<VaultSummar
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct CreateNoteRequest {
-    pub kind: NoteKind,
+struct CreateNoteRequest {
+    kind: NoteKind,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum NoteKind {
+enum NoteKind {
     Daily,
     Weekly,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct CreateNoteResponse {
+struct CreateNoteResponse {
     /// 作成または既存のファイルの絶対パス
-    pub path: String,
+    path: String,
     /// true = 新規作成, false = 既存ファイル
-    pub created: bool,
+    created: bool,
 }
 
 /// Daily / Weekly Note を生成する（既存なら既存パスを返す）
 #[tauri::command]
-pub async fn create_note(
+async fn create_note(
     request: CreateNoteRequest,
     state: State<'_, AppState>,
 ) -> Result<CreateNoteResponse, String> {

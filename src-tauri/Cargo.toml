@@ -8,7 +8,7 @@ name = "task_hub_desktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [dependencies]
-tauri = { version = "2", features = ["unstable"] }
+tauri = { version = "2", features = [] }
 tauri-plugin-shell = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-store = "2"         # Vaultパス等の設定永続化
