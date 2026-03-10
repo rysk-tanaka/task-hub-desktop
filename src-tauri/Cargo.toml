@@ -32,5 +32,25 @@ tokio = { version = "1", features = ["full"] }
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.5"                    # macOSネイティブAPI（信号機ボタン位置調整など）
 
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+unwrap_used = "warn"
+expect_used = "warn"
+dbg_macro = "deny"
+# Tauri コマンドは State を値渡しする規約
+needless_pass_by_value = "allow"
+# パーセント計算の cast は意図的
+cast_possible_truncation = "allow"
+cast_sign_loss = "allow"
+cast_precision_loss = "allow"
+# モジュール構成の都合で許容
+module_name_repetitions = "allow"
+# 日本語ドキュメントコメントの誤検知を回避
+doc_markdown = "allow"
+# エントリーポイントの panics doc は不要
+missing_panics_doc = "allow"
+# expand() / start_watching() は将来のエラー返却に備えて Result を維持
+unnecessary_wraps = "allow"
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

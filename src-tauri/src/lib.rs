@@ -29,11 +29,11 @@ async fn set_vault_root(
 ) -> Result<(), String> {
     let path = PathBuf::from(&path);
     if !path.exists() {
-        return Err(format!("パスが存在しません: {path:?}"));
+        return Err(format!("パスが存在しません: {}", path.display()));
     }
 
     {
-        let mut guard = state.vault_root.lock().unwrap();
+        let mut guard = state.vault_root.lock().map_err(|e| e.to_string())?;
         *guard = Some(path.clone());
     }
 
@@ -48,7 +48,7 @@ fn get_vault_root(state: State<'_, AppState>) -> Option<String> {
     state
         .vault_root
         .lock()
-        .unwrap()
+        .ok()?
         .as_ref()
         .map(|p| p.to_string_lossy().to_string())
 }
@@ -59,7 +59,7 @@ async fn get_vault_summary(state: State<'_, AppState>) -> Result<VaultSummary, S
     let vault_root = state
         .vault_root
         .lock()
-        .unwrap()
+        .map_err(|e| e.to_string())?
         .clone()
         .ok_or("Vaultが設定されていません")?;
 
@@ -95,11 +95,11 @@ async fn create_note(
     let vault_root = state
         .vault_root
         .lock()
-        .unwrap()
+        .map_err(|e| e.to_string())?
         .clone()
         .ok_or("Vaultが設定されていません")?;
 
-    note_creator::create_note(&vault_root, request.kind)
+    note_creator::create_note(&vault_root, &request.kind)
         .map_err(|e| e.to_string())
         .map(|(path, created)| CreateNoteResponse {
             path: path.to_string_lossy().to_string(),

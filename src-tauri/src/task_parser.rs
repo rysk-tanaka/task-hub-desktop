@@ -130,7 +130,7 @@ pub fn build_vault_summary(vault_root: &Path) -> anyhow::Result<VaultSummary> {
 
     for entry in WalkDir::new(vault_root)
         .into_iter()
-        .filter_map(|e| e.ok())
+        .filter_map(Result::ok)
         .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("md"))
     {
         let path = entry.path();
@@ -150,7 +150,8 @@ pub fn build_vault_summary(vault_root: &Path) -> anyhow::Result<VaultSummary> {
 
         // Inbox カウント
         if rel.starts_with("00_Inbox") {
-            inbox_count += tasks.iter().filter(|t| t.status == TaskStatus::Todo).count();
+            inbox_count +=
+                tasks.iter().filter(|t| t.status == TaskStatus::Todo).count();
         }
 
         // プロジェクト進捗
@@ -185,7 +186,7 @@ pub fn build_vault_summary(vault_root: &Path) -> anyhow::Result<VaultSummary> {
 
     let overdue: Vec<Task> = all_tasks
         .iter()
-        .filter(|t| t.status == TaskStatus::Todo && t.due.map_or(false, |d| d < today))
+        .filter(|t| t.status == TaskStatus::Todo && t.due.is_some_and(|d| d < today))
         .cloned()
         .collect();
 

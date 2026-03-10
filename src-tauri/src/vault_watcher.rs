@@ -12,23 +12,25 @@ pub fn start_watching(app: AppHandle, vault_root: PathBuf) -> anyhow::Result<()>
     std::thread::spawn(move || {
         let (tx, rx) = std::sync::mpsc::channel::<DebounceEventResult>();
 
-        let mut debouncer = new_debouncer(Duration::from_millis(500), tx)
-            .expect("failed to create debouncer");
+        let Ok(mut debouncer) = new_debouncer(Duration::from_millis(500), tx) else {
+            eprintln!("failed to create debouncer");
+            return;
+        };
 
-        debouncer
+        if debouncer
             .watcher()
             .watch(&vault_root, RecursiveMode::Recursive)
-            .expect("failed to watch vault");
+            .is_err()
+        {
+            eprintln!("failed to watch vault: {}", vault_root.display());
+            return;
+        }
 
         for result in rx {
             match result {
                 Ok(events) => {
-                    // Markdownファイルの変更のみフロントに通知
                     let md_changed = events.iter().any(|e| {
-                        e.path
-                            .extension()
-                            .and_then(|s| s.to_str())
-                            .map_or(false, |ext| ext == "md")
+                        e.path.extension().and_then(|s| s.to_str()) == Some("md")
                     });
                     if md_changed {
                         let _ = app.emit("vault:changed", ());

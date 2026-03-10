@@ -11,9 +11,9 @@ use crate::template;
 /// (出力ファイルパス, 新規作成フラグ)
 pub fn create_note(
     vault_root: &Path,
-    kind: crate::NoteKind,
+    kind: &crate::NoteKind,
 ) -> anyhow::Result<(PathBuf, bool)> {
-    let (output_path, template_path, file_title) = match kind {
+    let (output_path, template_path, file_title) = match *kind {
         crate::NoteKind::Daily => {
             let today = Local::now().format("%Y-%m-%d").to_string();
             let out = vault_root.join("50_Daily").join(format!("{today}.md"));
@@ -42,10 +42,10 @@ pub fn create_note(
 
     // テンプレートを読み込んで展開
     let template_content = std::fs::read_to_string(&template_path)
-        .unwrap_or_else(|_| default_template(&kind, &file_title));
+        .unwrap_or_else(|_| default_template(kind, &file_title));
 
     let expanded = template::expand(&template_content, &file_title)?;
-    std::fs::write(&output_path, &expanded)?;
+    std::fs::write(&output_path, expanded.as_bytes())?;
 
     Ok((output_path, true))
 }

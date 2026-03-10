@@ -3,7 +3,7 @@
 /// 対応する構文:
 ///   <% tp.date.now("FORMAT") %>
 ///   <% tp.date.weekday("FORMAT", WEEKDAY) %>
-///   <% tp.date.weekday("FORMAT", WEEKDAY, WEEK_OFFSET) %>
+///   <% tp.date.weekday("FORMAT", WEEKDAY, `WEEK_OFFSET`) %>
 ///   <% tp.file.title %>
 ///
 /// Dataview/Tasksクエリブロック内の構文はそのまま素通し。
@@ -62,7 +62,7 @@ fn calc_weekday(base: NaiveDate, weekday: i64, week_offset: i64) -> NaiveDate {
         n => n - 1,
     };
 
-    let base_weekday = base.weekday().num_days_from_monday() as i64;
+    let base_weekday = i64::from(base.weekday().num_days_from_monday());
     let diff = chrono_target - base_weekday;
     base + Duration::days(diff + week_offset * 7)
 }
@@ -133,7 +133,9 @@ pub fn expand(template: &str, file_title: &str) -> Result<String, TemplateError>
     let mut result = String::new();
     let mut last_end = 0;
     for caps in tmpl_re.captures_iter(&protected) {
-        let m = caps.get(0).unwrap();
+        let Some(m) = caps.get(0) else {
+            continue;
+        };
         result.push_str(&protected[last_end..m.start()]);
         let expr = &caps[1];
         match eval_expr(expr, file_title, today) {
@@ -182,8 +184,8 @@ mod tests {
     #[test]
     fn test_calc_weekday_next_sunday() {
         let base = date(2026, 3, 7);
-        // weekday=0 (日曜), week_offset=7 → 翌週日曜 = 2026-03-08
-        assert_eq!(calc_weekday(base, 0, 7), date(2026, 3, 15));
+        // weekday=0 (日曜), week_offset=1 → 翌週日曜 = 2026-03-15
+        assert_eq!(calc_weekday(base, 0, 1), date(2026, 3, 15));
     }
 
     #[test]
