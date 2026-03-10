@@ -136,10 +136,9 @@ impl Frontmatter {
                 .iter()
                 .map(|v| match v {
                     serde_yaml::Value::String(s) => s.clone(),
-                    other => serde_yaml::to_string(other)
-                        .unwrap_or_default()
-                        .trim()
-                        .to_string(),
+                    serde_yaml::Value::Number(n) => n.to_string(),
+                    serde_yaml::Value::Bool(b) => b.to_string(),
+                    _ => String::new(),
                 })
                 .collect(),
             serde_yaml::Value::String(s) => {
