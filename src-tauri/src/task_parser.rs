@@ -142,8 +142,8 @@ pub fn build_vault_summary(vault_root: &Path) -> anyhow::Result<VaultSummary> {
             .to_string_lossy()
             .to_string();
 
-        // Templates / Archive は除外
-        if rel.starts_with("Templates") || rel.starts_with("40_Archive") {
+        // Templates / Archive / README は除外
+        if rel.starts_with("Templates") || rel.starts_with("40_Archive") || rel == "README.md" {
             continue;
         }
 
@@ -332,6 +332,7 @@ mod tests {
         // Should be excluded from scanning
         fs::write(templates.join("tmpl.md"), "- [ ] Template task\n").expect("write template");
         fs::write(archive.join("old.md"), "- [ ] Archived task\n").expect("write archive");
+        fs::write(dir.join("README.md"), "- [ ] Sample task\n").expect("write readme");
     }
 
     #[test]
