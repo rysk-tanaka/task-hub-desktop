@@ -31,6 +31,33 @@ export interface VaultSummary {
 	projects: ProjectProgress[];
 }
 
+export type ListItemKind = { task: TaskStatus } | "bullet";
+
+export interface ListItem {
+	text: string;
+	kind: ListItemKind;
+	indent: number;
+	due: string | null;
+	done_date: string | null;
+	start: string | null;
+	source_file: string;
+	line: number;
+}
+
+export interface ProjectTasks {
+	name: string;
+	file: string;
+	items: ListItem[];
+}
+
+export interface WeeklyTasks {
+	week_start: string; // "YYYY-MM-DD"
+	week_end: string;
+	projects: ProjectTasks[];
+}
+
+export type ViewId = "summary" | "weekly";
+
 export type NoteKind = "daily" | "weekly";
 
 export interface CreateNoteResponse {

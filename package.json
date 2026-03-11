@@ -10,7 +10,11 @@
 		"lint:fix": "biome check --write .",
 		"format": "biome format --write .",
 		"preview": "vite preview",
-		"tauri": "tauri"
+		"tauri": "tauri",
+		"cargo:check": "cargo check --manifest-path src-tauri/Cargo.toml",
+		"cargo:test": "cargo test --manifest-path src-tauri/Cargo.toml",
+		"cargo:clippy": "cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings",
+		"cargo:coverage": "cargo tarpaulin --manifest-path src-tauri/Cargo.toml --skip-clean --out stdout"
 	},
 	"dependencies": {
 		"@tauri-apps/api": "^2.10.1",
