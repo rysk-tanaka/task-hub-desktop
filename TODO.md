@@ -2,7 +2,8 @@
 
 ## 未使用モジュールの活用
 
-- [ ] `frontmatter.rs` が `#[allow(dead_code)]` のまま未使用。タグベースのフィルタリングやメタデータ表示に活用する
+- [x] ~~`frontmatter.rs` が `#[allow(dead_code)]` のまま未使用~~ → `task_parser.rs` で本文分離・`archived` スキップに活用済み
+- [ ] `frontmatter.rs` のタグベースフィルタリングやメタデータ表示への拡張
 
 ## 機能拡張候補
 

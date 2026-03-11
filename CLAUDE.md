@@ -61,8 +61,8 @@ pnpm exec tsc --noEmit
 
 | モジュール | 責務 |
 | --- | --- |
-| `task_parser` | Markdown タスク行パース、Vault 走査・集計 |
-| `frontmatter` | YAML フロントマター解析 |
+| `task_parser` | Markdown タスク行パース、Vault 走査・集計（frontmatter で本文分離） |
+| `frontmatter` | YAML フロントマター解析・操作・シリアライズ |
 | `template` | Obsidian Templater 構文のサブセット展開 |
 | `note_creator` | Daily/Weekly Note ファイル生成・重複チェック |
 | `vault_watcher` | notify による Vault ファイル監視・イベント emit |
@@ -79,6 +79,15 @@ Dashboard → useVault.createNote("daily")
 → dialog plugin の ask() で確認ダイアログ表示
 → 承認時に shell plugin の open() で obsidian://open?path=... を起動
 ```
+
+### frontmatter と task_parser の連携
+
+`build_vault_summary` は `frontmatter::parse_document` で本文を分離してからタスクをパースする。
+
+- **フロントマター内の誤検知防止**: YAML 内のチェックボックス風テキストをタスクとして検出しない
+- **`archived: true` スキップ**: フロントマターに `archived: true` があるファイルは集計対象外
+- **行番号オフセット**: フロントマター分の行数を加算して正確なタスク行番号を維持
+- **パース失敗時の安全策**: フロントマターとして無効（水平線 `---` 等）な場合は元の content 全体をパースする
 
 ## Vault ディレクトリ規約
 

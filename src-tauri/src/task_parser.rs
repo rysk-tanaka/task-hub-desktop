@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::sync::OnceLock;
 
+use crate::frontmatter;
+
 // CLAUDE.md の記法に準拠したタスクステータス
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -148,7 +150,34 @@ pub fn build_vault_summary(vault_root: &Path) -> anyhow::Result<VaultSummary> {
         }
 
         let content = std::fs::read_to_string(path)?;
-        let tasks = parse_tasks(&content, &rel);
+        let doc = frontmatter::parse_document(&content);
+
+        // archived フラグによるスキップ（YAML ブール型 `true`/`false` のみ認識。
+        // 文字列 `"true"` や YAML 1.1 の `yes` はスキップ対象外）
+        if let Some(fm) = &doc.frontmatter {
+            if fm.get_bool("archived").unwrap_or(false) {
+                continue;
+            }
+        }
+
+        // フロントマターが有効にパースできた場合のみ本文を分離する。
+        // デリミタ (---) は存在するが YAML パースが失敗した場合も frontmatter は None になる。
+        // その場合は content 全体をフォールバックとして使い、タスクの取りこぼしを防ぐ
+        // （誤検知より漏れを避ける優先設計）。
+        let (body, body_line_offset) = if doc.frontmatter.is_some() {
+            // フロントマター行数 + 開閉 `---` 分（2行）をオフセットとして使う
+            let offset = doc
+                .raw_yaml
+                .as_ref()
+                .map_or(0, |y| y.lines().count() + 2);
+            (doc.body.as_str(), offset)
+        } else {
+            (content.as_str(), 0)
+        };
+        let mut tasks = parse_tasks(body, &rel);
+        for task in &mut tasks {
+            task.line += body_line_offset;
+        }
 
         // Inbox カウント
         if rel.starts_with("00_Inbox") {
@@ -377,6 +406,80 @@ mod tests {
         assert!(summary.projects.is_empty());
         assert!(summary.due_today.is_empty());
         assert!(summary.overdue.is_empty());
+    }
+
+    #[test]
+    fn build_summary_skips_archived_files() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let inbox = tmp.path().join("00_Inbox");
+        fs::create_dir_all(&inbox).expect("create dir");
+
+        fs::write(
+            inbox.join("active.md"),
+            "- [ ] Active task\n",
+        )
+        .expect("write active");
+        fs::write(
+            inbox.join("archived.md"),
+            "---\narchived: true\n---\n- [ ] Should be skipped\n",
+        )
+        .expect("write archived");
+
+        let summary = build_vault_summary(tmp.path()).expect("summary");
+        assert_eq!(summary.inbox_count, 1);
+    }
+
+    #[test]
+    fn build_summary_ignores_frontmatter_checkboxes() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let inbox = tmp.path().join("00_Inbox");
+        fs::create_dir_all(&inbox).expect("create dir");
+
+        // YAML ブロックスカラー内の `- [ ]` がタスクとして誤検知されないこと
+        fs::write(
+            inbox.join("note.md"),
+            "---\ndescription: |\n  - [ ] Not a task\n---\n- [ ] Real task\n",
+        )
+        .expect("write");
+
+        let summary = build_vault_summary(tmp.path()).expect("summary");
+        assert_eq!(summary.inbox_count, 1);
+    }
+
+    #[test]
+    fn build_summary_correct_line_numbers_with_frontmatter() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let inbox = tmp.path().join("00_Inbox");
+        fs::create_dir_all(&inbox).expect("create dir");
+
+        // フロントマター4行 + "# Heading\n" = 5行目, "- [ ] Task\n" = 6行目
+        fs::write(
+            inbox.join("note.md"),
+            "---\ntitle: My Note\ntags: [a]\n---\n# Heading\n- [ ] Task 📅 2020-01-01\n",
+        )
+        .expect("write");
+
+        let summary = build_vault_summary(tmp.path()).expect("summary");
+        assert_eq!(summary.overdue.len(), 1);
+        assert_eq!(summary.overdue[0].line, 6);
+    }
+
+    #[test]
+    fn build_summary_preserves_tasks_with_hr_start() {
+        // 先頭 --- が水平線（フロントマターではない）のファイルでもタスクが失われないこと
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let inbox = tmp.path().join("00_Inbox");
+        fs::create_dir_all(&inbox).expect("create dir");
+
+        fs::write(
+            inbox.join("hr.md"),
+            "---\n- [ ] Task after hr\n---\n- [ ] Task after second hr\n",
+        )
+        .expect("write");
+
+        let summary = build_vault_summary(tmp.path()).expect("summary");
+        // 両方のタスクが検出されるべき（フロントマターとして無効なため全体がパースされる）
+        assert_eq!(summary.inbox_count, 2);
     }
 
     #[test]
