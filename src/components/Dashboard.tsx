@@ -326,7 +326,7 @@ export function Dashboard() {
 
 const styles: Record<
 	string,
-	React.CSSProperties & { WebkitAppRegion?: string }
+	React.CSSProperties & { WebkitAppRegion?: "drag" | "no-drag" }
 > = {
 	root: {
 		height: "100vh",
