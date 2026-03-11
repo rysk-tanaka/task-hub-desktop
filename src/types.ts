@@ -56,6 +56,8 @@ export interface WeeklyTasks {
 	projects: ProjectTasks[];
 }
 
+export type ViewId = "summary" | "weekly";
+
 export type NoteKind = "daily" | "weekly";
 
 export interface CreateNoteResponse {
