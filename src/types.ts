@@ -31,6 +31,18 @@ export interface VaultSummary {
 	projects: ProjectProgress[];
 }
 
+export interface ProjectTasks {
+	name: string;
+	file: string;
+	tasks: Task[];
+}
+
+export interface WeeklyTasks {
+	week_start: string; // "YYYY-MM-DD"
+	week_end: string;
+	projects: ProjectTasks[];
+}
+
 export type NoteKind = "daily" | "weekly";
 
 export interface CreateNoteResponse {

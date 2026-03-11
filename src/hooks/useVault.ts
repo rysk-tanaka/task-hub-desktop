@@ -5,11 +5,18 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useState } from "react";
-import type { CreateNoteResponse, NoteKind, VaultSummary } from "../types";
+import type {
+	CreateNoteResponse,
+	NoteKind,
+	VaultSummary,
+	WeeklyTasks,
+} from "../types";
 
 export function useVault() {
 	const [vaultRoot, setVaultRootState] = useState<string | null>(null);
 	const [summary, setSummary] = useState<VaultSummary | null>(null);
+	const [weeklyTasks, setWeeklyTasks] = useState<WeeklyTasks | null>(null);
+	const [weekOffset, setWeekOffset] = useState(0);
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
@@ -18,6 +25,17 @@ export function useVault() {
 		invoke<string | null>("get_vault_root").then((path) => {
 			if (path) setVaultRootState(path);
 		});
+	}, []);
+
+	const refreshWeeklyTasks = useCallback(async (offset: number) => {
+		try {
+			const data = await invoke<WeeklyTasks>("get_weekly_tasks", {
+				weekOffset: offset,
+			});
+			setWeeklyTasks(data);
+		} catch (e) {
+			setError(String(e));
+		}
 	}, []);
 
 	const refreshSummary = useCallback(async () => {
@@ -33,21 +51,23 @@ export function useVault() {
 		}
 	}, []);
 
-	// Vaultが設定されたらサマリーを取得
+	// Vaultが設定されたらサマリーと週間タスクを取得
 	useEffect(() => {
 		if (!vaultRoot) return;
 		refreshSummary();
-	}, [vaultRoot, refreshSummary]);
+		refreshWeeklyTasks(weekOffset);
+	}, [vaultRoot, refreshSummary, refreshWeeklyTasks, weekOffset]);
 
 	// Rustからの "vault:changed" イベントでリフレッシュ
 	useEffect(() => {
 		const unlisten = listen("vault:changed", () => {
 			refreshSummary();
+			refreshWeeklyTasks(weekOffset);
 		});
 		return () => {
 			unlisten.then((fn) => fn());
 		};
-	}, [refreshSummary]);
+	}, [refreshSummary, refreshWeeklyTasks, weekOffset]);
 
 	const setVaultRoot = useCallback(async (path: string) => {
 		await invoke("set_vault_root", { path });
@@ -66,6 +86,9 @@ export function useVault() {
 	return {
 		vaultRoot,
 		summary,
+		weeklyTasks,
+		weekOffset,
+		setWeekOffset,
 		loading,
 		error,
 		setError,

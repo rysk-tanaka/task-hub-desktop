@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_store::StoreExt;
 
-use task_parser::VaultSummary;
+use task_parser::{VaultSummary, WeeklyTasks};
 use vault_watcher::VaultDebouncer;
 
 const STORE_FILE: &str = "settings.json";
@@ -103,6 +103,22 @@ struct CreateNoteResponse {
     created: bool,
 }
 
+/// 指定週の 10_Projects/ タスクをプロジェクト別に返す
+#[tauri::command]
+async fn get_weekly_tasks(
+    week_offset: i32,
+    state: State<'_, AppState>,
+) -> Result<WeeklyTasks, String> {
+    let vault_root = state
+        .vault_root
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone()
+        .ok_or("Vaultが設定されていません")?;
+
+    task_parser::build_weekly_tasks(&vault_root, week_offset).map_err(|e| e.to_string())
+}
+
 /// Daily / Weekly Note を生成する（既存なら既存パスを返す）
 #[tauri::command]
 async fn create_note(
@@ -178,6 +194,7 @@ pub fn run() {
             set_vault_root,
             get_vault_root,
             get_vault_summary,
+            get_weekly_tasks,
             create_note,
         ])
         .run(tauri::generate_context!())

@@ -1,4 +1,4 @@
-use chrono::NaiveDate;
+use chrono::{Datelike, Duration, NaiveDate};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -123,14 +123,16 @@ pub fn parse_tasks(content: &str, source_file: &str) -> Vec<Task> {
     tasks
 }
 
-/// Vaultを走査してサマリーを生成する
-pub fn build_vault_summary(vault_root: &Path) -> anyhow::Result<VaultSummary> {
+struct VaultFile {
+    rel_path: String,
+    tasks: Vec<Task>,
+}
+
+/// Vault 内の .md ファイルを走査し、除外・frontmatter 処理済みのタスク一覧を返す
+fn walk_vault_tasks(vault_root: &Path) -> anyhow::Result<Vec<VaultFile>> {
     use walkdir::WalkDir;
 
-    let today = chrono::Local::now().date_naive();
-    let mut all_tasks: Vec<Task> = Vec::new();
-    let mut inbox_count = 0usize;
-    let mut projects: Vec<ProjectProgress> = Vec::new();
+    let mut files = Vec::new();
 
     for entry in WalkDir::new(vault_root)
         .into_iter()
@@ -179,26 +181,52 @@ pub fn build_vault_summary(vault_root: &Path) -> anyhow::Result<VaultSummary> {
             task.line += body_line_offset;
         }
 
+        files.push(VaultFile {
+            rel_path: rel,
+            tasks,
+        });
+    }
+
+    Ok(files)
+}
+
+/// Vaultを走査してサマリーを生成する
+pub fn build_vault_summary(vault_root: &Path) -> anyhow::Result<VaultSummary> {
+    let today = chrono::Local::now().date_naive();
+    let vault_files = walk_vault_tasks(vault_root)?;
+
+    let mut all_tasks: Vec<Task> = Vec::new();
+    let mut inbox_count = 0usize;
+    let mut projects: Vec<ProjectProgress> = Vec::new();
+
+    for vf in &vault_files {
         // Inbox カウント
-        if rel.starts_with("00_Inbox") {
-            inbox_count +=
-                tasks.iter().filter(|t| t.status == TaskStatus::Todo).count();
+        if vf.rel_path.starts_with("00_Inbox") {
+            inbox_count += vf
+                .tasks
+                .iter()
+                .filter(|t| t.status == TaskStatus::Todo)
+                .count();
         }
 
         // プロジェクト進捗
-        if rel.starts_with("10_Projects") {
-            let total = tasks.len();
+        if vf.rel_path.starts_with("10_Projects") {
+            let total = vf.tasks.len();
             if total > 0 {
-                let completed = tasks.iter().filter(|t| t.status == TaskStatus::Done).count();
+                let completed = vf
+                    .tasks
+                    .iter()
+                    .filter(|t| t.status == TaskStatus::Done)
+                    .count();
                 let percent = ((completed as f64 / total as f64) * 100.0).round() as u32;
-                let name = path
+                let name = Path::new(&vf.rel_path)
                     .file_stem()
                     .and_then(|s| s.to_str())
                     .unwrap_or("unknown")
                     .to_string();
                 projects.push(ProjectProgress {
                     name,
-                    file: rel.clone(),
+                    file: vf.rel_path.clone(),
                     completed,
                     total,
                     percent,
@@ -206,7 +234,7 @@ pub fn build_vault_summary(vault_root: &Path) -> anyhow::Result<VaultSummary> {
             }
         }
 
-        all_tasks.extend(tasks);
+        all_tasks.extend(vf.tasks.clone());
     }
 
     let due_today: Vec<Task> = all_tasks
@@ -225,6 +253,70 @@ pub fn build_vault_summary(vault_root: &Path) -> anyhow::Result<VaultSummary> {
         inbox_count,
         due_today,
         overdue,
+        projects,
+    })
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ProjectTasks {
+    pub name: String,
+    pub file: String,
+    pub tasks: Vec<Task>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct WeeklyTasks {
+    pub week_start: NaiveDate,
+    pub week_end: NaiveDate,
+    pub projects: Vec<ProjectTasks>,
+}
+
+/// 指定週の `10_Projects/` タスクをプロジェクト別に返す
+pub fn build_weekly_tasks(vault_root: &Path, week_offset: i32) -> anyhow::Result<WeeklyTasks> {
+    let today = chrono::Local::now().date_naive();
+    let days_since_monday = i64::from(today.weekday().num_days_from_monday());
+    let this_monday = today - Duration::days(days_since_monday);
+    let week_start = this_monday + Duration::weeks(i64::from(week_offset));
+    let week_end = week_start + Duration::days(6);
+
+    let vault_files = walk_vault_tasks(vault_root)?;
+
+    let mut projects: Vec<ProjectTasks> = Vec::new();
+
+    for vf in &vault_files {
+        if !vf.rel_path.starts_with("10_Projects") {
+            continue;
+        }
+
+        let week_tasks: Vec<Task> = vf
+            .tasks
+            .iter()
+            .filter(|t| t.start.is_some_and(|s| s >= week_start && s <= week_end))
+            .cloned()
+            .collect();
+
+        if week_tasks.is_empty() {
+            continue;
+        }
+
+        let name = Path::new(&vf.rel_path)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("unknown")
+            .to_string();
+
+        projects.push(ProjectTasks {
+            name,
+            file: vf.rel_path.clone(),
+            tasks: week_tasks,
+        });
+    }
+
+    projects.sort_by(|a, b| a.name.cmp(&b.name));
+
+    Ok(WeeklyTasks {
+        week_start,
+        week_end,
         projects,
     })
 }
@@ -496,5 +588,119 @@ mod tests {
         let summary = build_vault_summary(tmp.path()).expect("summary");
         assert_eq!(summary.overdue.len(), 1);
         assert_eq!(summary.overdue[0].text, "Overdue");
+    }
+
+    // ---- build_weekly_tasks ----
+
+    fn create_weekly_test_vault(dir: &Path, monday: NaiveDate) {
+        let projects = dir.join("10_Projects");
+        let inbox = dir.join("00_Inbox");
+        fs::create_dir_all(&projects).expect("create dir");
+        fs::create_dir_all(&inbox).expect("create dir");
+
+        let wed = monday + Duration::days(2);
+        let fri = monday + Duration::days(4);
+        let prev_week = monday - Duration::days(3);
+
+        fs::write(
+            projects.join("Alpha.md"),
+            format!(
+                "- [ ] In-week task 🛫 {wed}\n- [x] Done task 🛫 {fri}\n- [ ] Out-of-range 🛫 {prev_week}\n- [ ] No start date\n"
+            ),
+        )
+        .expect("write alpha");
+
+        fs::write(
+            projects.join("Beta.md"),
+            format!("- [/] Beta task 🛫 {monday}\n"),
+        )
+        .expect("write beta");
+
+        // Inbox tasks should not appear
+        fs::write(
+            inbox.join("inbox.md"),
+            format!("- [ ] Inbox task 🛫 {wed}\n"),
+        )
+        .expect("write inbox");
+    }
+
+    #[test]
+    fn weekly_tasks_filters_by_start_date() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let today = chrono::Local::now().date_naive();
+        let monday = today - Duration::days(i64::from(today.weekday().num_days_from_monday()));
+        create_weekly_test_vault(tmp.path(), monday);
+
+        let weekly = build_weekly_tasks(tmp.path(), 0).expect("weekly");
+        assert_eq!(weekly.week_start, monday);
+        assert_eq!(weekly.week_end, monday + Duration::days(6));
+
+        // Alpha: 2 tasks in range (wed, fri), Beta: 1 task (monday)
+        assert_eq!(weekly.projects.len(), 2);
+
+        let alpha = weekly.projects.iter().find(|p| p.name == "Alpha").expect("Alpha");
+        assert_eq!(alpha.tasks.len(), 2);
+
+        let beta = weekly.projects.iter().find(|p| p.name == "Beta").expect("Beta");
+        assert_eq!(beta.tasks.len(), 1);
+    }
+
+    #[test]
+    fn weekly_tasks_excludes_non_project_files() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let today = chrono::Local::now().date_naive();
+        let monday = today - Duration::days(i64::from(today.weekday().num_days_from_monday()));
+        create_weekly_test_vault(tmp.path(), monday);
+
+        let weekly = build_weekly_tasks(tmp.path(), 0).expect("weekly");
+        // Inbox task with start date in range should NOT appear
+        let names: Vec<&str> = weekly.projects.iter().map(|p| p.name.as_str()).collect();
+        assert!(!names.contains(&"inbox"));
+    }
+
+    #[test]
+    fn weekly_tasks_excludes_tasks_without_start() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let today = chrono::Local::now().date_naive();
+        let monday = today - Duration::days(i64::from(today.weekday().num_days_from_monday()));
+        create_weekly_test_vault(tmp.path(), monday);
+
+        let weekly = build_weekly_tasks(tmp.path(), 0).expect("weekly");
+        let alpha = weekly.projects.iter().find(|p| p.name == "Alpha").expect("Alpha");
+        // "No start date" task should not be included
+        assert!(alpha.tasks.iter().all(|t| t.start.is_some()));
+    }
+
+    #[test]
+    fn weekly_tasks_week_offset() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let today = chrono::Local::now().date_naive();
+        let monday = today - Duration::days(i64::from(today.weekday().num_days_from_monday()));
+        create_weekly_test_vault(tmp.path(), monday);
+
+        // Previous week should not contain any of the current week's tasks
+        let prev = build_weekly_tasks(tmp.path(), -1).expect("prev week");
+        let prev_task_count: usize = prev.projects.iter().map(|p| p.tasks.len()).sum();
+        // Only 1 task from Alpha has prev_week start date
+        assert_eq!(prev_task_count, 1);
+    }
+
+    #[test]
+    fn weekly_tasks_sorted_by_name() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let today = chrono::Local::now().date_naive();
+        let monday = today - Duration::days(i64::from(today.weekday().num_days_from_monday()));
+        create_weekly_test_vault(tmp.path(), monday);
+
+        let weekly = build_weekly_tasks(tmp.path(), 0).expect("weekly");
+        let names: Vec<&str> = weekly.projects.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, vec!["Alpha", "Beta"]);
+    }
+
+    #[test]
+    fn weekly_tasks_empty_vault() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let weekly = build_weekly_tasks(tmp.path(), 0).expect("weekly");
+        assert!(weekly.projects.is_empty());
     }
 }

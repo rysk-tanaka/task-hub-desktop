@@ -3,6 +3,7 @@ import { ask, open } from "@tauri-apps/plugin-dialog";
 import { open as shellOpen } from "@tauri-apps/plugin-shell";
 import { useVault } from "../hooks/useVault";
 import type { ProjectProgress, Task } from "../types";
+import { WeeklySection } from "./WeeklySection";
 
 // ---- サブコンポーネント ----
 
@@ -133,6 +134,9 @@ export function Dashboard() {
 	const {
 		vaultRoot,
 		summary,
+		weeklyTasks,
+		weekOffset,
+		setWeekOffset,
 		loading,
 		error,
 		setError,
@@ -316,6 +320,14 @@ export function Dashboard() {
 							</section>
 						</div>
 					</div>
+
+					{weeklyTasks && (
+						<WeeklySection
+							weeklyTasks={weeklyTasks}
+							weekOffset={weekOffset}
+							onChangeWeek={setWeekOffset}
+						/>
+					)}
 				</main>
 			)}
 		</div>
