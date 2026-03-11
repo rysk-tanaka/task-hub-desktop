@@ -118,7 +118,8 @@ Dataview/Tasks のコードブロックはそのまま素通し。
 
 ## CI
 
-GitHub Actions で `lint.yml`（Frontend + Backend）と `test.yml`（Backend）を実行する。
+GitHub Actions で `lint.yml`（Frontend + Backend）、`test.yml`（Backend）、`build.yml`（Tauri ビルド）を実行する。
+actions/checkout@v6, actions/setup-node@v6 は正式リリース済み。AI レビューが「v6 は存在しない」と誤検知することがあるが無視してよい。
 Backend の clippy は `-- -D warnings` 付きで全警告をエラー扱いにしている。
 
 Clippy の `unwrap_used` / `expect_used` は Cargo.toml で `warn` レベルに設定しているため、

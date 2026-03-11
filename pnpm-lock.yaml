@@ -18,10 +18,10 @@ importers:
         specifier: ^2.3.5
         version: 2.3.5
       react:
-        specifier: ^19.2.0
+        specifier: ^19.2.4
         version: 19.2.4
       react-dom:
-        specifier: ^19.2.0
+        specifier: ^19.2.4
         version: 19.2.4(react@19.2.4)
     devDependencies:
       '@biomejs/biome':
@@ -31,16 +31,16 @@ importers:
         specifier: ^2.10.1
         version: 2.10.1
       '@types/node':
-        specifier: ^24.10.1
+        specifier: ^24.12.0
         version: 24.12.0
       '@types/react':
-        specifier: ^19.2.7
+        specifier: ^19.2.14
         version: 19.2.14
       '@types/react-dom':
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.14)
       '@vitejs/plugin-react':
-        specifier: ^5.1.1
+        specifier: ^5.1.4
         version: 5.1.4(vite@7.3.1(@types/node@24.12.0))
       typescript:
         specifier: ~5.9.3
