@@ -1,4 +1,4 @@
-// TODO: task_parser / note_creator から利用予定
+// note_creator 等からの追加利用を予定（現在は task_parser のみ）
 #[allow(dead_code)]
 mod frontmatter;
 mod note_creator;

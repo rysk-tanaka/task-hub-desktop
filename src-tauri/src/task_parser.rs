@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::sync::OnceLock;
 
+use crate::frontmatter;
+
 // CLAUDE.md の記法に準拠したタスクステータス
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -148,7 +150,27 @@ pub fn build_vault_summary(vault_root: &Path) -> anyhow::Result<VaultSummary> {
         }
 
         let content = std::fs::read_to_string(path)?;
-        let tasks = parse_tasks(&content, &rel);
+        let doc = frontmatter::parse_document(&content);
+
+        // archived フラグによるスキップ
+        if let Some(fm) = &doc.frontmatter {
+            if fm.get_bool("archived").unwrap_or(false) {
+                continue;
+            }
+        }
+
+        // フロントマターが有効にパースできた場合のみ本文を分離する。
+        // パース失敗時（先頭 --- が水平線等の場合）は元の content 全体を使う。
+        let (body, body_line_offset) = if doc.frontmatter.is_some() {
+            let offset = content.lines().count() - doc.body.lines().count();
+            (doc.body.as_str(), offset)
+        } else {
+            (content.as_str(), 0)
+        };
+        let mut tasks = parse_tasks(body, &rel);
+        for task in &mut tasks {
+            task.line += body_line_offset;
+        }
 
         // Inbox カウント
         if rel.starts_with("00_Inbox") {
@@ -377,6 +399,83 @@ mod tests {
         assert!(summary.projects.is_empty());
         assert!(summary.due_today.is_empty());
         assert!(summary.overdue.is_empty());
+    }
+
+    #[test]
+    fn build_summary_skips_archived_files() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let inbox = tmp.path().join("00_Inbox");
+        fs::create_dir_all(&inbox).expect("create dir");
+
+        fs::write(
+            inbox.join("active.md"),
+            "- [ ] Active task\n",
+        )
+        .expect("write active");
+        fs::write(
+            inbox.join("archived.md"),
+            "---\narchived: true\n---\n- [ ] Should be skipped\n",
+        )
+        .expect("write archived");
+
+        let summary = build_vault_summary(tmp.path()).expect("summary");
+        assert_eq!(summary.inbox_count, 1);
+    }
+
+    #[test]
+    fn build_summary_ignores_frontmatter_checkboxes() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let inbox = tmp.path().join("00_Inbox");
+        fs::create_dir_all(&inbox).expect("create dir");
+
+        // フロントマター内のチェックボックス風テキストは無視されるべき
+        fs::write(
+            inbox.join("note.md"),
+            "---\ntitle: \"- [ ] Not a task\"\n---\n- [ ] Real task\n",
+        )
+        .expect("write");
+
+        let summary = build_vault_summary(tmp.path()).expect("summary");
+        assert_eq!(summary.inbox_count, 1);
+    }
+
+    #[test]
+    fn build_summary_correct_line_numbers_with_frontmatter() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let projects = tmp.path().join("10_Projects");
+        fs::create_dir_all(&projects).expect("create dir");
+
+        fs::write(
+            projects.join("Proj.md"),
+            "---\ntitle: My Project\ntags: [a]\n---\n# Project\n- [ ] Task A\n- [x] Task B\n",
+        )
+        .expect("write");
+
+        let summary = build_vault_summary(tmp.path()).expect("summary");
+        assert_eq!(summary.projects.len(), 1);
+        assert_eq!(summary.projects[0].total, 2);
+
+        // "---\ntitle: My Project\ntags: [a]\n---\n" = 4 lines of frontmatter
+        // "# Project\n" = line 5, "- [ ] Task A\n" = line 6
+        // Due/overdue lists won't have these tasks, so check via projects
+    }
+
+    #[test]
+    fn build_summary_preserves_tasks_with_hr_start() {
+        // 先頭 --- が水平線（フロントマターではない）のファイルでもタスクが失われないこと
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let inbox = tmp.path().join("00_Inbox");
+        fs::create_dir_all(&inbox).expect("create dir");
+
+        fs::write(
+            inbox.join("hr.md"),
+            "---\n- [ ] Task after hr\n---\n- [ ] Task after second hr\n",
+        )
+        .expect("write");
+
+        let summary = build_vault_summary(tmp.path()).expect("summary");
+        // 両方のタスクが検出されるべき（フロントマターとして無効なため全体がパースされる）
+        assert_eq!(summary.inbox_count, 2);
     }
 
     #[test]

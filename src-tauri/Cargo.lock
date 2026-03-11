@@ -3566,6 +3566,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
+ "indexmap 2.13.0",
  "notify",
  "notify-debouncer-mini",
  "objc2 0.5.2",
