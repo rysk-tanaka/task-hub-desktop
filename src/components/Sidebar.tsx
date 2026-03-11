@@ -53,7 +53,7 @@ const styles: Record<string, React.CSSProperties> = {
 		display: "flex",
 		alignItems: "center",
 		justifyContent: "center",
-		fontSize: 18,
+		fontSize: "var(--font-lg)",
 		background: "transparent",
 		border: "none",
 		borderLeft: "3px solid transparent",

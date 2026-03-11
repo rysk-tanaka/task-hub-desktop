@@ -13,7 +13,13 @@ export function Header({
 		<header style={styles.header}>
 			<div>
 				<h1 style={styles.title}>Task Hub</h1>
-				<div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
+				<div
+					style={{
+						fontSize: "var(--font-xs)",
+						color: "var(--text-muted)",
+						marginTop: 2,
+					}}
+				>
 					{vaultRoot}
 				</div>
 			</div>
@@ -58,7 +64,7 @@ const styles: Record<
 		WebkitAppRegion: "drag",
 	},
 	title: {
-		fontSize: 16,
+		fontSize: "var(--font-lg)",
 		fontWeight: 600,
 		margin: 0,
 		color: "var(--text)",
@@ -69,7 +75,7 @@ const styles: Record<
 		border: "none",
 		borderRadius: 6,
 		padding: "7px 16px",
-		fontSize: 13,
+		fontSize: "var(--font-sm)",
 		fontWeight: 500,
 		cursor: "pointer",
 		WebkitAppRegion: "no-drag",
@@ -80,7 +86,7 @@ const styles: Record<
 		border: "1px solid var(--border)",
 		borderRadius: 6,
 		padding: "7px 14px",
-		fontSize: 13,
+		fontSize: "var(--font-sm)",
 		cursor: "pointer",
 		WebkitAppRegion: "no-drag",
 	},

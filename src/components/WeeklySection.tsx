@@ -48,7 +48,7 @@ function ListItemRow({ item }: { item: ListItem }) {
 			{item.start && (
 				<span
 					style={{
-						fontSize: 11,
+						fontSize: "var(--font-base)",
 						color: "var(--text-muted)",
 						flexShrink: 0,
 					}}
@@ -99,7 +99,7 @@ export function WeeklySection({
 					</button>
 					<span
 						style={{
-							fontSize: 12,
+							fontSize: "var(--font-sm)",
 							color: "var(--text-muted)",
 							minWidth: 40,
 							textAlign: "center",
@@ -115,7 +115,9 @@ export function WeeklySection({
 						&#9654;
 					</button>
 				</div>
-				<span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+				<span
+					style={{ fontSize: "var(--font-sm)", color: "var(--text-muted)" }}
+				>
 					{formatRange(weeklyTasks.week_start, weeklyTasks.week_end)}
 				</span>
 			</div>
@@ -124,7 +126,7 @@ export function WeeklySection({
 				<div
 					style={{
 						color: "var(--text-muted)",
-						fontSize: 13,
+						fontSize: "var(--font-base)",
 						padding: "12px 0",
 					}}
 				>
@@ -149,7 +151,7 @@ export function WeeklySection({
 
 const styles: Record<string, React.CSSProperties> = {
 	sectionTitle: {
-		fontSize: 13,
+		fontSize: "var(--font-sm)",
 		fontWeight: 600,
 		color: "var(--text-muted)",
 		textTransform: "uppercase",
@@ -162,12 +164,12 @@ const styles: Record<string, React.CSSProperties> = {
 		borderRadius: 4,
 		color: "var(--text-muted)",
 		cursor: "pointer",
-		fontSize: 10,
+		fontSize: "var(--font-sm)",
 		padding: "2px 6px",
 		lineHeight: 1,
 	},
 	projectName: {
-		fontSize: 13,
+		fontSize: "var(--font-base)",
 		fontWeight: 600,
 		color: "var(--accent)",
 		margin: "0 0 6px 0",
@@ -178,6 +180,6 @@ const styles: Record<string, React.CSSProperties> = {
 		gap: 8,
 		padding: "4px 0 4px 8px",
 		borderBottom: "1px solid var(--border)",
-		fontSize: 13,
+		fontSize: "var(--font-base)",
 	},
 };

@@ -60,7 +60,11 @@ export default function App() {
 					Vault を選択してください
 				</h2>
 				<p
-					style={{ color: "var(--text-muted)", marginBottom: 24, fontSize: 13 }}
+					style={{
+						color: "var(--text-muted)",
+						marginBottom: 24,
+						fontSize: "var(--font-base)",
+					}}
 				>
 					obsidian-task-hub のフォルダを指定します
 				</p>
@@ -143,7 +147,7 @@ const styles: Record<
 		border: "none",
 		borderRadius: 6,
 		padding: "7px 16px",
-		fontSize: 13,
+		fontSize: "var(--font-sm)",
 		fontWeight: 500,
 		cursor: "pointer",
 	},
@@ -151,6 +155,6 @@ const styles: Record<
 		background: "#3d1a1a",
 		color: "#ff6b6b",
 		padding: "8px 24px",
-		fontSize: 12,
+		fontSize: "var(--font-sm)",
 	},
 };

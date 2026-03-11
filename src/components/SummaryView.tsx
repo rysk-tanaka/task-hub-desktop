@@ -21,14 +21,20 @@ function StatCard({
 		>
 			<div
 				style={{
-					fontSize: 28,
+					fontSize: "var(--font-xl)",
 					fontWeight: 700,
 					color: accent ? "var(--accent)" : "var(--text)",
 				}}
 			>
 				{value}
 			</div>
-			<div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
+			<div
+				style={{
+					fontSize: "var(--font-sm)",
+					color: "var(--text-muted)",
+					marginTop: 2,
+				}}
+			>
 				{label}
 			</div>
 		</div>
@@ -46,7 +52,7 @@ function TaskRow({ task }: { task: Task }) {
 				gap: 10,
 				padding: "6px 0",
 				borderBottom: "1px solid var(--border)",
-				fontSize: 13,
+				fontSize: "var(--font-base)",
 			}}
 		>
 			<span
@@ -60,7 +66,7 @@ function TaskRow({ task }: { task: Task }) {
 			<span style={{ color: "var(--text)", flex: 1 }}>{task.text}</span>
 			<span
 				style={{
-					fontSize: 11,
+					fontSize: "var(--font-base)",
 					color: "var(--text-muted)",
 					maxWidth: 160,
 					overflow: "hidden",
@@ -107,7 +113,7 @@ function ProjectRow({ project }: { project: ProjectProgress }) {
 				gap: 12,
 				padding: "7px 0",
 				borderBottom: "1px solid var(--border)",
-				fontSize: 13,
+				fontSize: "var(--font-base)",
 			}}
 		>
 			<span style={{ flex: 1, color: "var(--text)" }}>{project.name}</span>
@@ -172,7 +178,7 @@ export function SummaryView({ summary }: { summary: VaultSummary }) {
 							<div
 								style={{
 									color: "var(--text-muted)",
-									fontSize: 13,
+									fontSize: "var(--font-base)",
 									padding: "12px 0",
 								}}
 							>
@@ -190,7 +196,7 @@ export function SummaryView({ summary }: { summary: VaultSummary }) {
 							<div
 								style={{
 									color: "var(--text-muted)",
-									fontSize: 13,
+									fontSize: "var(--font-base)",
 									padding: "12px 0",
 								}}
 							>
@@ -213,7 +219,7 @@ const styles: Record<string, React.CSSProperties> = {
 		marginBottom: 20,
 	},
 	sectionTitle: {
-		fontSize: 13,
+		fontSize: "var(--font-sm)",
 		fontWeight: 600,
 		color: "var(--text-muted)",
 		textTransform: "uppercase",
