@@ -152,7 +152,8 @@ pub fn build_vault_summary(vault_root: &Path) -> anyhow::Result<VaultSummary> {
         let content = std::fs::read_to_string(path)?;
         let doc = frontmatter::parse_document(&content);
 
-        // archived フラグによるスキップ
+        // archived フラグによるスキップ（YAML ブール型 `true`/`false` のみ認識。
+        // 文字列 `"true"` や YAML 1.1 の `yes` はスキップ対象外）
         if let Some(fm) = &doc.frontmatter {
             if fm.get_bool("archived").unwrap_or(false) {
                 continue;
@@ -434,10 +435,10 @@ mod tests {
         let inbox = tmp.path().join("00_Inbox");
         fs::create_dir_all(&inbox).expect("create dir");
 
-        // YAML リスト要素として行頭 `- [ ]` が出現するケース
+        // YAML ブロックスカラー内の `- [ ]` がタスクとして誤検知されないこと
         fs::write(
             inbox.join("note.md"),
-            "---\ntitle: Test\naliases:\n  - \"- [ ] Not a task\"\n---\n- [ ] Real task\n",
+            "---\ndescription: |\n  - [ ] Not a task\n---\n- [ ] Real task\n",
         )
         .expect("write");
 
