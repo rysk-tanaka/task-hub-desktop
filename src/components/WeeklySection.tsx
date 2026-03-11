@@ -30,7 +30,7 @@ function ListItemRow({ item }: { item: ListItem }) {
 		<div
 			style={{
 				...styles.taskRow,
-				paddingLeft: 8 + item.indent * 20,
+				paddingLeft: 8 + Math.floor(item.indent / 4) * 20,
 			}}
 		>
 			<span style={{ width: 20, textAlign: "center", flexShrink: 0 }}>

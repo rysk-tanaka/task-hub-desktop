@@ -51,12 +51,17 @@ export function useVault() {
 		}
 	}, []);
 
-	// Vaultが設定されたらサマリーと週間タスクを取得
+	// Vaultが設定されたらサマリーを取得
 	useEffect(() => {
 		if (!vaultRoot) return;
 		refreshSummary();
+	}, [vaultRoot, refreshSummary]);
+
+	// Vault設定時・weekOffset変更時に週間タスクを取得
+	useEffect(() => {
+		if (!vaultRoot) return;
 		refreshWeeklyTasks(weekOffset);
-	}, [vaultRoot, refreshSummary, refreshWeeklyTasks, weekOffset]);
+	}, [vaultRoot, refreshWeeklyTasks, weekOffset]);
 
 	// Rustからの "vault:changed" イベントでリフレッシュ
 	useEffect(() => {
