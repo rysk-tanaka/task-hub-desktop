@@ -324,7 +324,10 @@ export function Dashboard() {
 
 // ---- スタイル ----
 
-const styles: Record<string, React.CSSProperties & { WebkitAppRegion?: string }> = {
+const styles: Record<
+	string,
+	React.CSSProperties & { WebkitAppRegion?: string }
+> = {
 	root: {
 		height: "100vh",
 		display: "flex",
