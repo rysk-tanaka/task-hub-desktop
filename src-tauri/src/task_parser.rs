@@ -160,9 +160,15 @@ pub fn build_vault_summary(vault_root: &Path) -> anyhow::Result<VaultSummary> {
         }
 
         // フロントマターが有効にパースできた場合のみ本文を分離する。
-        // パース失敗時（先頭 --- が水平線等の場合）は元の content 全体を使う。
+        // デリミタ (---) は存在するが YAML パースが失敗した場合も frontmatter は None になる。
+        // その場合は content 全体をフォールバックとして使い、タスクの取りこぼしを防ぐ
+        // （誤検知より漏れを避ける優先設計）。
         let (body, body_line_offset) = if doc.frontmatter.is_some() {
-            let offset = content.lines().count() - doc.body.lines().count();
+            // フロントマター行数 + 開閉 `---` 分（2行）をオフセットとして使う
+            let offset = doc
+                .raw_yaml
+                .as_ref()
+                .map_or(0, |y| y.lines().count() + 2);
             (doc.body.as_str(), offset)
         } else {
             (content.as_str(), 0)
@@ -428,10 +434,10 @@ mod tests {
         let inbox = tmp.path().join("00_Inbox");
         fs::create_dir_all(&inbox).expect("create dir");
 
-        // フロントマター内のチェックボックス風テキストは無視されるべき
+        // YAML リスト要素として行頭 `- [ ]` が出現するケース
         fs::write(
             inbox.join("note.md"),
-            "---\ntitle: \"- [ ] Not a task\"\n---\n- [ ] Real task\n",
+            "---\ntitle: Test\naliases:\n  - \"- [ ] Not a task\"\n---\n- [ ] Real task\n",
         )
         .expect("write");
 
@@ -442,22 +448,19 @@ mod tests {
     #[test]
     fn build_summary_correct_line_numbers_with_frontmatter() {
         let tmp = tempfile::tempdir().expect("tempdir");
-        let projects = tmp.path().join("10_Projects");
-        fs::create_dir_all(&projects).expect("create dir");
+        let inbox = tmp.path().join("00_Inbox");
+        fs::create_dir_all(&inbox).expect("create dir");
 
+        // フロントマター4行 + "# Heading\n" = 5行目, "- [ ] Task\n" = 6行目
         fs::write(
-            projects.join("Proj.md"),
-            "---\ntitle: My Project\ntags: [a]\n---\n# Project\n- [ ] Task A\n- [x] Task B\n",
+            inbox.join("note.md"),
+            "---\ntitle: My Note\ntags: [a]\n---\n# Heading\n- [ ] Task 📅 2020-01-01\n",
         )
         .expect("write");
 
         let summary = build_vault_summary(tmp.path()).expect("summary");
-        assert_eq!(summary.projects.len(), 1);
-        assert_eq!(summary.projects[0].total, 2);
-
-        // "---\ntitle: My Project\ntags: [a]\n---\n" = 4 lines of frontmatter
-        // "# Project\n" = line 5, "- [ ] Task A\n" = line 6
-        // Due/overdue lists won't have these tasks, so check via projects
+        assert_eq!(summary.overdue.len(), 1);
+        assert_eq!(summary.overdue[0].line, 6);
     }
 
     #[test]
