@@ -8,6 +8,7 @@
 	"packageRules": [
 		{
 			"matchUpdateTypes": ["minor", "patch"],
+			"matchManagers": ["npm", "cargo", "pre-commit"],
 			"automerge": true
 		}
 	]
