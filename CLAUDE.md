@@ -19,15 +19,14 @@ pnpm lint:fix         # Biome 自動修正
 pnpm format           # Biome フォーマット
 ```
 
-Rust のテスト・lint:
+Rust のテスト・lint（ルートから実行可能）:
 
 ```bash
-cd src-tauri && cargo test                                  # 全テスト
-cd src-tauri && cargo test template::tests                  # 特定モジュールのテスト
-cd src-tauri && cargo test template::tests::test_moment     # 単一テスト（前方一致）
-cd src-tauri && cargo check                                 # 型チェックのみ（高速）
-cd src-tauri && cargo clippy                                # Clippy lint（pedantic 有効）
-cd src-tauri && cargo tarpaulin --skip-clean --out stdout    # カバレッジ計測
+pnpm cargo:check                       # 型チェックのみ（高速）
+pnpm cargo:test                        # 全テスト
+pnpm cargo:test -- template::tests     # 特定モジュールのテスト（前方一致）
+pnpm cargo:clippy                      # Clippy lint（-D warnings 付き）
+pnpm cargo:coverage                    # カバレッジ計測（tarpaulin）
 ```
 
 TypeScript の型チェック:
@@ -69,17 +68,28 @@ pnpm exec tsc --noEmit -p tsconfig.app.json
 | `note_creator` | Daily/Weekly Note ファイル生成・重複チェック |
 | `vault_watcher` | notify による Vault ファイル監視・イベント emit |
 
+### フロントエンド UI 構成
+
+`App.tsx` がルートコンポーネントで、`useVault()` の呼び出し・レイアウト管理・ビュー切替を担当する。
+
+- Vault 未設定時: サイドバーなしの選択画面
+- Vault 設定後: サイドバー（44px）+ Header + Content Area のレイアウト
+- `ViewId` (`"summary" | "weekly"`) で表示ビューを切替
+- `Header` にはドラッグ領域（`WebkitAppRegion: "drag"`）とアクションボタンを配置
+- フォントサイズは `styles.css` の CSS 変数（`--font-xs` 〜 `--font-xl`）で一元管理
+
 ### データフロー例: Daily Note 作成
 
 ```text
-Dashboard → useVault.createNote("daily")
-  → invoke("create_note") → lib.rs → note_creator.rs
-    → Templates/daily-template.md 読み込み
-    → template::expand() で Templater 構文展開
-    → 50_Daily/{YYYY-MM-DD}.md に書き込み
-  ← CreateNoteResponse { path, created }
-→ dialog plugin の ask() で確認ダイアログ表示
-→ 承認時に shell plugin の open() で obsidian://open?path=... を起動
+App → handleCreateNote("daily")
+  → useVault.createNote("daily")
+    → invoke("create_note") → lib.rs → note_creator.rs
+      → Templates/daily-template.md 読み込み
+      → template::expand() で Templater 構文展開
+      → 50_Daily/{YYYY-MM-DD}.md に書き込み
+    ← CreateNoteResponse { path, created }
+  → dialog plugin の ask() で確認ダイアログ表示
+  → 承認時に shell plugin の open() で obsidian://open?path=... を起動
 ```
 
 ### frontmatter と task_parser の連携
