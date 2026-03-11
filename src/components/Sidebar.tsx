@@ -21,6 +21,8 @@ export function Sidebar({
 						key={id}
 						type="button"
 						title={label}
+						aria-label={label}
+						aria-current={isActive ? "page" : undefined}
 						style={{
 							...styles.item,
 							...(isActive ? styles.itemActive : {}),

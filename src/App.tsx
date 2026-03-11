@@ -44,8 +44,12 @@ export default function App() {
 				{ title: label, kind: "info", okLabel: "開く", cancelLabel: "閉じる" },
 			);
 			if (confirmed) {
-				const url = `obsidian://open?path=${encodeURIComponent(res.path)}`;
-				await shellOpen(url);
+				try {
+					const url = `obsidian://open?path=${encodeURIComponent(res.path)}`;
+					await shellOpen(url);
+				} catch (e) {
+					setError(String(e));
+				}
 			}
 		} catch (e) {
 			setError(String(e));
@@ -111,13 +115,18 @@ export default function App() {
 					{activeView === "summary" && summary && (
 						<SummaryView summary={summary} />
 					)}
-					{activeView === "weekly" && weeklyTasks && (
-						<WeeklySection
-							weeklyTasks={weeklyTasks}
-							weekOffset={weekOffset}
-							onChangeWeek={setWeekOffset}
-						/>
-					)}
+					{activeView === "weekly" &&
+						(weeklyTasks ? (
+							<WeeklySection
+								weeklyTasks={weeklyTasks}
+								weekOffset={weekOffset}
+								onChangeWeek={setWeekOffset}
+							/>
+						) : (
+							<div style={styles.centered}>
+								<span style={{ color: "var(--text-muted)" }}>読み込み中…</span>
+							</div>
+						))}
 				</main>
 			</div>
 		</div>

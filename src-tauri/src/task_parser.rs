@@ -306,7 +306,7 @@ pub fn build_vault_summary(vault_root: &Path) -> anyhow::Result<VaultSummary> {
     let mut inbox_count = 0usize;
     let mut projects: Vec<ProjectProgress> = Vec::new();
 
-    for vf in &vault_files {
+    for mut vf in vault_files {
         // Inbox カウント
         if vf.rel_path.starts_with("00_Inbox") {
             inbox_count += vf
@@ -333,7 +333,7 @@ pub fn build_vault_summary(vault_root: &Path) -> anyhow::Result<VaultSummary> {
                     .to_string();
                 projects.push(ProjectProgress {
                     name,
-                    file: vf.rel_path.clone(),
+                    file: vf.rel_path,
                     completed,
                     total,
                     percent,
@@ -341,7 +341,7 @@ pub fn build_vault_summary(vault_root: &Path) -> anyhow::Result<VaultSummary> {
             }
         }
 
-        all_tasks.extend(vf.tasks.clone());
+        all_tasks.append(&mut vf.tasks);
     }
 
     let due_today: Vec<Task> = all_tasks

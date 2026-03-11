@@ -11,13 +11,16 @@ export function Header({
 }) {
 	return (
 		<header style={styles.header}>
-			<div>
+			<div style={{ minWidth: 0, flex: 1 }}>
 				<h1 style={styles.title}>Task Hub</h1>
 				<div
 					style={{
 						fontSize: "var(--font-xs)",
 						color: "var(--text-muted)",
 						marginTop: 2,
+						overflow: "hidden",
+						textOverflow: "ellipsis",
+						whiteSpace: "nowrap",
 					}}
 				>
 					{vaultRoot}

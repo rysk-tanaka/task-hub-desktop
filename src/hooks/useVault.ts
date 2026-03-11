@@ -4,7 +4,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
 	CreateNoteResponse,
 	NoteKind,
@@ -27,14 +27,24 @@ export function useVault() {
 		});
 	}, []);
 
+	// レースコンディション防止: 最新のリクエストのみ state を更新する
+	const weeklyRequestId = useRef(0);
+
 	const refreshWeeklyTasks = useCallback(async (offset: number) => {
+		const requestId = ++weeklyRequestId.current;
+		setError(null);
 		try {
+			// Tauri v2 は camelCase → snake_case を自動変換するため weekOffset で正しい
 			const data = await invoke<WeeklyTasks>("get_weekly_tasks", {
 				weekOffset: offset,
 			});
-			setWeeklyTasks(data);
+			if (requestId === weeklyRequestId.current) {
+				setWeeklyTasks(data);
+			}
 		} catch (e) {
-			setError(String(e));
+			if (requestId === weeklyRequestId.current) {
+				setError(String(e));
+			}
 		}
 	}, []);
 
@@ -63,16 +73,22 @@ export function useVault() {
 		refreshWeeklyTasks(weekOffset);
 	}, [vaultRoot, refreshWeeklyTasks, weekOffset]);
 
+	// vault:changed リスナーから最新の weekOffset を参照するための ref
+	const weekOffsetRef = useRef(weekOffset);
+	useEffect(() => {
+		weekOffsetRef.current = weekOffset;
+	}, [weekOffset]);
+
 	// Rustからの "vault:changed" イベントでリフレッシュ
 	useEffect(() => {
 		const unlisten = listen("vault:changed", () => {
 			refreshSummary();
-			refreshWeeklyTasks(weekOffset);
+			refreshWeeklyTasks(weekOffsetRef.current);
 		});
 		return () => {
 			unlisten.then((fn) => fn());
 		};
-	}, [refreshSummary, refreshWeeklyTasks, weekOffset]);
+	}, [refreshSummary, refreshWeeklyTasks]);
 
 	const setVaultRoot = useCallback(async (path: string) => {
 		await invoke("set_vault_root", { path });
@@ -88,12 +104,18 @@ export function useVault() {
 		[],
 	);
 
+	// 週切替時にデータをリセットして表示不整合を防ぐ
+	const changeWeek = useCallback((offset: number) => {
+		setWeeklyTasks(null);
+		setWeekOffset(offset);
+	}, []);
+
 	return {
 		vaultRoot,
 		summary,
 		weeklyTasks,
 		weekOffset,
-		setWeekOffset,
+		setWeekOffset: changeWeek,
 		loading,
 		error,
 		setError,

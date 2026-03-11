@@ -88,10 +88,11 @@ export function WeeklySection({
 					marginBottom: 12,
 				}}
 			>
-				<h3 style={styles.sectionTitle}>今週の予定</h3>
+				<h3 style={styles.sectionTitle}>{weekLabel}の予定</h3>
 				<div style={{ display: "flex", alignItems: "center", gap: 4 }}>
 					<button
 						type="button"
+						aria-label="前の週"
 						style={styles.navButton}
 						onClick={() => onChangeWeek(weekOffset - 1)}
 					>
@@ -109,6 +110,7 @@ export function WeeklySection({
 					</span>
 					<button
 						type="button"
+						aria-label="次の週"
 						style={styles.navButton}
 						onClick={() => onChangeWeek(weekOffset + 1)}
 					>
