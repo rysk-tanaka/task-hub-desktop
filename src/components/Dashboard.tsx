@@ -324,7 +324,10 @@ export function Dashboard() {
 
 // ---- スタイル ----
 
-const styles: Record<string, React.CSSProperties> = {
+const styles: Record<
+	string,
+	React.CSSProperties & { WebkitAppRegion?: "drag" | "no-drag" }
+> = {
 	root: {
 		height: "100vh",
 		display: "flex",
@@ -341,7 +344,7 @@ const styles: Record<string, React.CSSProperties> = {
 		padding: "14px 24px",
 		borderBottom: "1px solid var(--border)",
 		background: "var(--header-bg)",
-		WebkitAppRegion: "drag" as React.CSSProperties["display"], // タイトルバードラッグ
+		WebkitAppRegion: "drag", // タイトルバードラッグ
 	},
 	title: {
 		fontSize: 16,
@@ -388,7 +391,7 @@ const styles: Record<string, React.CSSProperties> = {
 		fontSize: 13,
 		fontWeight: 500,
 		cursor: "pointer",
-		WebkitAppRegion: "no-drag" as React.CSSProperties["display"],
+		WebkitAppRegion: "no-drag",
 	},
 	secondaryButton: {
 		background: "transparent",
@@ -398,7 +401,7 @@ const styles: Record<string, React.CSSProperties> = {
 		padding: "7px 14px",
 		fontSize: 13,
 		cursor: "pointer",
-		WebkitAppRegion: "no-drag" as React.CSSProperties["display"],
+		WebkitAppRegion: "no-drag",
 	},
 	errorBanner: {
 		background: "#3d1a1a",
