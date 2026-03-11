@@ -28,9 +28,13 @@ export default function App() {
 	const [activeView, setActiveView] = useState<ViewId>("summary");
 
 	async function handleSelectVault() {
-		const selected = await open({ directory: true, multiple: false });
-		if (typeof selected === "string") {
-			await setVaultRoot(selected);
+		try {
+			const selected = await open({ directory: true, multiple: false });
+			if (typeof selected === "string") {
+				await setVaultRoot(selected);
+			}
+		} catch (e) {
+			setError(String(e));
 		}
 	}
 

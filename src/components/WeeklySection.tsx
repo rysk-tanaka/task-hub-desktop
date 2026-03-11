@@ -40,7 +40,10 @@ function ListItemRow({ item }: { item: ListItem }) {
 				style={{
 					flex: 1,
 					color: isDimmed ? "var(--text-muted)" : "var(--text)",
-					textDecoration: status === "done" ? "line-through" : "none",
+					textDecoration:
+						status === "done" || status === "cancelled"
+							? "line-through"
+							: "none",
 				}}
 			>
 				{item.text}
