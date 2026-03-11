@@ -45,14 +45,43 @@ pub struct ProjectProgress {
     pub percent: u32,
 }
 
+// 週間ビュー用: タスクと非タスク箇条書きの両方を扱う
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ListItemKind {
+    Task(TaskStatus),
+    Bullet,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ListItem {
+    pub text: String,
+    pub kind: ListItemKind,
+    pub indent: usize, // 先頭スペース数（タブは4スペース換算）
+    pub due: Option<NaiveDate>,
+    pub done_date: Option<NaiveDate>,
+    pub start: Option<NaiveDate>,
+    pub source_file: String,
+    pub line: usize,
+}
+
 static TASK_RE: OnceLock<Regex> = OnceLock::new();
 static DATE_RE: OnceLock<Regex> = OnceLock::new();
+static BULLET_RE: OnceLock<Regex> = OnceLock::new();
 
 #[allow(clippy::unwrap_used)]
 fn task_regex() -> &'static Regex {
     TASK_RE.get_or_init(|| {
         // - [x] タスク名 📅 2026-03-07 ✅ 2026-03-07
         Regex::new(r"^(\s*)-\s*\[(.)\]\s+(.+)$").unwrap()
+    })
+}
+
+#[allow(clippy::unwrap_used)]
+fn bullet_regex() -> &'static Regex {
+    BULLET_RE.get_or_init(|| {
+        // - テキスト（チェックボックスなし）
+        Regex::new(r"^(\s*)-\s+(.+)$").unwrap()
     })
 }
 
@@ -123,9 +152,82 @@ pub fn parse_tasks(content: &str, source_file: &str) -> Vec<Task> {
     tasks
 }
 
+/// インデント幅を計算（タブは4スペース換算）
+fn measure_indent(leading: &str) -> usize {
+    leading.chars().fold(0, |acc, c| {
+        if c == '\t' {
+            acc + 4
+        } else {
+            acc + 1
+        }
+    })
+}
+
+/// Markdown からタスク行と非タスク箇条書きの両方を抽出する（週間ビュー用）
+pub fn parse_list_items(content: &str, source_file: &str) -> Vec<ListItem> {
+    let task_re = task_regex();
+    let bullet_re = bullet_regex();
+    let date_re = date_regex();
+    let mut items = Vec::new();
+
+    for (line_idx, line) in content.lines().enumerate() {
+        // タスク行を先にチェック（両方の正規表現にマッチするため）
+        if let Some(caps) = task_re.captures(line) {
+            let indent = measure_indent(&caps[1]);
+            let status_char = caps[2].chars().next().unwrap_or(' ');
+            let text_raw = caps[3].trim().to_string();
+
+            let mut due = None;
+            let mut done_date = None;
+            let mut start = None;
+
+            for date_cap in date_re.captures_iter(&text_raw) {
+                let emoji = &date_cap[1];
+                let date = parse_date(&date_cap[2]);
+                match emoji {
+                    "📅" => due = date,
+                    "✅" => done_date = date,
+                    "🛫" => start = date,
+                    _ => {}
+                }
+            }
+
+            let text = date_re.replace_all(&text_raw, "").trim().to_string();
+
+            items.push(ListItem {
+                text,
+                kind: ListItemKind::Task(parse_status(status_char)),
+                indent,
+                due,
+                done_date,
+                start,
+                source_file: source_file.to_string(),
+                line: line_idx + 1,
+            });
+        } else if let Some(caps) = bullet_re.captures(line) {
+            let indent = measure_indent(&caps[1]);
+            let text = caps[2].trim().to_string();
+
+            items.push(ListItem {
+                text,
+                kind: ListItemKind::Bullet,
+                indent,
+                due: None,
+                done_date: None,
+                start: None,
+                source_file: source_file.to_string(),
+                line: line_idx + 1,
+            });
+        }
+    }
+
+    items
+}
+
 struct VaultFile {
     rel_path: String,
     tasks: Vec<Task>,
+    list_items: Vec<ListItem>,
 }
 
 /// Vault 内の .md ファイルを走査し、除外・frontmatter 処理済みのタスク一覧を返す
@@ -180,10 +282,15 @@ fn walk_vault_tasks(vault_root: &Path) -> anyhow::Result<Vec<VaultFile>> {
         for task in &mut tasks {
             task.line += body_line_offset;
         }
+        let mut list_items = parse_list_items(body, &rel);
+        for item in &mut list_items {
+            item.line += body_line_offset;
+        }
 
         files.push(VaultFile {
             rel_path: rel,
             tasks,
+            list_items,
         });
     }
 
@@ -261,7 +368,7 @@ pub fn build_vault_summary(vault_root: &Path) -> anyhow::Result<VaultSummary> {
 pub struct ProjectTasks {
     pub name: String,
     pub file: String,
-    pub tasks: Vec<Task>,
+    pub items: Vec<ListItem>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -269,6 +376,40 @@ pub struct WeeklyTasks {
     pub week_start: NaiveDate,
     pub week_end: NaiveDate,
     pub projects: Vec<ProjectTasks>,
+}
+
+/// 週範囲内の start を持つタスクと、その直後の子アイテム（より深いインデント）を収集
+fn collect_weekly_items(
+    items: &[ListItem],
+    week_start: NaiveDate,
+    week_end: NaiveDate,
+) -> Vec<ListItem> {
+    let mut result = Vec::new();
+    let mut i = 0;
+
+    while i < items.len() {
+        let item = &items[i];
+
+        // start が週範囲内のタスクを見つける
+        let is_week_task = matches!(&item.kind, ListItemKind::Task(_))
+            && item.start.is_some_and(|s| s >= week_start && s <= week_end);
+
+        if is_week_task {
+            let parent_indent = item.indent;
+            result.push(item.clone());
+            i += 1;
+
+            // 親より深いインデントの後続アイテムを子として収集
+            while i < items.len() && items[i].indent > parent_indent {
+                result.push(items[i].clone());
+                i += 1;
+            }
+        } else {
+            i += 1;
+        }
+    }
+
+    result
 }
 
 /// 指定週の `10_Projects/` タスクをプロジェクト別に返す
@@ -288,14 +429,10 @@ pub fn build_weekly_tasks(vault_root: &Path, week_offset: i32) -> anyhow::Result
             continue;
         }
 
-        let week_tasks: Vec<Task> = vf
-            .tasks
-            .iter()
-            .filter(|t| t.start.is_some_and(|s| s >= week_start && s <= week_end))
-            .cloned()
-            .collect();
+        // 週範囲内の親タスク + その子アイテムを収集
+        let items = collect_weekly_items(&vf.list_items, week_start, week_end);
 
-        if week_tasks.is_empty() {
+        if items.is_empty() {
             continue;
         }
 
@@ -308,7 +445,7 @@ pub fn build_weekly_tasks(vault_root: &Path, week_offset: i32) -> anyhow::Result
         projects.push(ProjectTasks {
             name,
             file: vf.rel_path.clone(),
-            tasks: week_tasks,
+            items,
         });
     }
 
@@ -605,7 +742,7 @@ mod tests {
         fs::write(
             projects.join("Alpha.md"),
             format!(
-                "- [ ] In-week task 🛫 {wed}\n- [x] Done task 🛫 {fri}\n- [ ] Out-of-range 🛫 {prev_week}\n- [ ] No start date\n"
+                "- [ ] In-week task 🛫 {wed}\n    - Sub note for in-week\n    - [ ] Sub task\n- [x] Done task 🛫 {fri}\n- [ ] Out-of-range 🛫 {prev_week}\n- [ ] No start date\n"
             ),
         )
         .expect("write alpha");
@@ -635,14 +772,15 @@ mod tests {
         assert_eq!(weekly.week_start, monday);
         assert_eq!(weekly.week_end, monday + Duration::days(6));
 
-        // Alpha: 2 tasks in range (wed, fri), Beta: 1 task (monday)
+        // Alpha: 2 parent tasks + 2 children of first task, Beta: 1 task
         assert_eq!(weekly.projects.len(), 2);
 
         let alpha = weekly.projects.iter().find(|p| p.name == "Alpha").expect("Alpha");
-        assert_eq!(alpha.tasks.len(), 2);
+        // In-week task + 2 children (sub note, sub task) + Done task = 4
+        assert_eq!(alpha.items.len(), 4);
 
         let beta = weekly.projects.iter().find(|p| p.name == "Beta").expect("Beta");
-        assert_eq!(beta.tasks.len(), 1);
+        assert_eq!(beta.items.len(), 1);
     }
 
     #[test]
@@ -667,8 +805,10 @@ mod tests {
 
         let weekly = build_weekly_tasks(tmp.path(), 0).expect("weekly");
         let alpha = weekly.projects.iter().find(|p| p.name == "Alpha").expect("Alpha");
-        // "No start date" task should not be included
-        assert!(alpha.tasks.iter().all(|t| t.start.is_some()));
+        // Only parent tasks with start dates + their children should be included
+        // (no "No start date" task, no "Out-of-range" task as standalone)
+        let parent_items: Vec<_> = alpha.items.iter().filter(|i| i.indent == 0).collect();
+        assert!(parent_items.iter().all(|i| i.start.is_some()));
     }
 
     #[test]
@@ -678,11 +818,11 @@ mod tests {
         let monday = today - Duration::days(i64::from(today.weekday().num_days_from_monday()));
         create_weekly_test_vault(tmp.path(), monday);
 
-        // Previous week should not contain any of the current week's tasks
+        // Previous week should contain only the out-of-range task from Alpha
         let prev = build_weekly_tasks(tmp.path(), -1).expect("prev week");
-        let prev_task_count: usize = prev.projects.iter().map(|p| p.tasks.len()).sum();
-        // Only 1 task from Alpha has prev_week start date
-        assert_eq!(prev_task_count, 1);
+        let prev_item_count: usize = prev.projects.iter().map(|p| p.items.len()).sum();
+        // Only 1 task (Out-of-range) with no children
+        assert_eq!(prev_item_count, 1);
     }
 
     #[test]
@@ -702,5 +842,83 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         let weekly = build_weekly_tasks(tmp.path(), 0).expect("weekly");
         assert!(weekly.projects.is_empty());
+    }
+
+    // ---- parse_list_items ----
+
+    #[test]
+    fn list_items_parses_tasks_and_bullets() {
+        let md = "- [ ] Task one\n- Bullet note\n- [x] Done task\n";
+        let items = parse_list_items(md, "t.md");
+        assert_eq!(items.len(), 3);
+        assert_eq!(items[0].kind, ListItemKind::Task(TaskStatus::Todo));
+        assert_eq!(items[0].text, "Task one");
+        assert_eq!(items[1].kind, ListItemKind::Bullet);
+        assert_eq!(items[1].text, "Bullet note");
+        assert_eq!(items[2].kind, ListItemKind::Task(TaskStatus::Done));
+    }
+
+    #[test]
+    fn list_items_indent_levels() {
+        let md = "- [ ] Root\n    - [ ] Child\n        - Note\n";
+        let items = parse_list_items(md, "t.md");
+        assert_eq!(items.len(), 3);
+        assert_eq!(items[0].indent, 0);
+        assert_eq!(items[1].indent, 4);
+        assert_eq!(items[2].indent, 8);
+    }
+
+    #[test]
+    fn list_items_tab_indent() {
+        let md = "\t- [ ] Tab indented\n";
+        let items = parse_list_items(md, "t.md");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].indent, 4);
+    }
+
+    #[test]
+    fn list_items_dates_on_tasks_only() {
+        let md = "- [ ] Task 🛫 2026-03-10\n- Bullet text\n";
+        let items = parse_list_items(md, "t.md");
+        assert_eq!(
+            items[0].start,
+            Some(NaiveDate::from_ymd_opt(2026, 3, 10).expect("valid date"))
+        );
+        assert!(items[1].start.is_none());
+    }
+
+    // ---- collect_weekly_items ----
+
+    #[test]
+    fn collect_weekly_items_includes_children() {
+        let mon = NaiveDate::from_ymd_opt(2026, 3, 9).expect("valid date");
+        let sun = mon + Duration::days(6);
+        let md = format!(
+            "- [ ] Parent 🛫 {mon}\n    - Child bullet\n    - [x] Child task\n- [ ] Sibling 🛫 {mon}\n"
+        );
+        let items = parse_list_items(&md, "t.md");
+        let result = collect_weekly_items(&items, mon, sun);
+        // Parent + 2 children + Sibling = 4
+        assert_eq!(result.len(), 4);
+        assert_eq!(result[0].text, "Parent");
+        assert_eq!(result[1].text, "Child bullet");
+        assert_eq!(result[2].text, "Child task");
+        assert_eq!(result[3].text, "Sibling");
+    }
+
+    #[test]
+    fn collect_weekly_items_stops_at_same_indent() {
+        let mon = NaiveDate::from_ymd_opt(2026, 3, 9).expect("valid date");
+        let sun = mon + Duration::days(6);
+        let outside = mon - Duration::days(7);
+        let md = format!(
+            "- [ ] Match 🛫 {mon}\n    - Child\n- [ ] No match 🛫 {outside}\n    - Should not appear\n"
+        );
+        let items = parse_list_items(&md, "t.md");
+        let result = collect_weekly_items(&items, mon, sun);
+        // Match + Child only
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].text, "Match");
+        assert_eq!(result[1].text, "Child");
     }
 }

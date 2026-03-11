@@ -31,10 +31,23 @@ export interface VaultSummary {
 	projects: ProjectProgress[];
 }
 
+export type ListItemKind = { task: TaskStatus } | "bullet";
+
+export interface ListItem {
+	text: string;
+	kind: ListItemKind;
+	indent: number;
+	due: string | null;
+	done_date: string | null;
+	start: string | null;
+	source_file: string;
+	line: number;
+}
+
 export interface ProjectTasks {
 	name: string;
 	file: string;
-	tasks: Task[];
+	items: ListItem[];
 }
 
 export interface WeeklyTasks {

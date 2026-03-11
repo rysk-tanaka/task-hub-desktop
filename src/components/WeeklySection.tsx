@@ -1,4 +1,4 @@
-import type { TaskStatus, WeeklyTasks } from "../types";
+import type { ListItem, ListItemKind, TaskStatus, WeeklyTasks } from "../types";
 
 const STATUS_MARKER: Record<TaskStatus, string> = {
 	todo: "\u2b1c",
@@ -8,10 +8,56 @@ const STATUS_MARKER: Record<TaskStatus, string> = {
 	cancelled: "\u274c",
 };
 
+function getTaskStatus(kind: ListItemKind): TaskStatus | null {
+	if (typeof kind === "object" && "task" in kind) {
+		return kind.task;
+	}
+	return null;
+}
+
 function formatRange(start: string, end: string): string {
 	const s = new Date(`${start}T00:00:00`);
 	const e = new Date(`${end}T00:00:00`);
 	return `${s.getMonth() + 1}/${s.getDate()} ~ ${e.getMonth() + 1}/${e.getDate()}`;
+}
+
+function ListItemRow({ item }: { item: ListItem }) {
+	const status = getTaskStatus(item.kind);
+	const isBullet = item.kind === "bullet";
+	const isDimmed = isBullet || status === "done" || status === "cancelled";
+
+	return (
+		<div
+			style={{
+				...styles.taskRow,
+				paddingLeft: 8 + item.indent * 20,
+			}}
+		>
+			<span style={{ width: 20, textAlign: "center", flexShrink: 0 }}>
+				{status ? STATUS_MARKER[status] : "\u2022"}
+			</span>
+			<span
+				style={{
+					flex: 1,
+					color: isDimmed ? "var(--text-muted)" : "var(--text)",
+					textDecoration: status === "done" ? "line-through" : "none",
+				}}
+			>
+				{item.text}
+			</span>
+			{item.start && (
+				<span
+					style={{
+						fontSize: 11,
+						color: "var(--text-muted)",
+						flexShrink: 0,
+					}}
+				>
+					{item.start}
+				</span>
+			)}
+		</div>
+	);
 }
 
 export function WeeklySection({
@@ -88,39 +134,11 @@ export function WeeklySection({
 				weeklyTasks.projects.map((project) => (
 					<div key={project.file} style={{ marginBottom: 16 }}>
 						<h4 style={styles.projectName}>{project.name}</h4>
-						{project.tasks.map((task) => (
-							<div
-								key={`${task.source_file}:${task.line}`}
-								style={styles.taskRow}
-							>
-								<span style={{ width: 20, textAlign: "center", flexShrink: 0 }}>
-									{STATUS_MARKER[task.status]}
-								</span>
-								<span
-									style={{
-										flex: 1,
-										color:
-											task.status === "done" || task.status === "cancelled"
-												? "var(--text-muted)"
-												: "var(--text)",
-										textDecoration:
-											task.status === "done" ? "line-through" : "none",
-									}}
-								>
-									{task.text}
-								</span>
-								{task.start && (
-									<span
-										style={{
-											fontSize: 11,
-											color: "var(--text-muted)",
-											flexShrink: 0,
-										}}
-									>
-										{task.start}
-									</span>
-								)}
-							</div>
+						{project.items.map((item) => (
+							<ListItemRow
+								key={`${item.source_file}:${item.line}`}
+								item={item}
+							/>
 						))}
 					</div>
 				))
