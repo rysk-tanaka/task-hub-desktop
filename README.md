@@ -2,6 +2,8 @@
 
 [![lint](https://github.com/rysk-tanaka/task-hub-desktop/actions/workflows/lint.yml/badge.svg)](https://github.com/rysk-tanaka/task-hub-desktop/actions/workflows/lint.yml)
 [![test](https://github.com/rysk-tanaka/task-hub-desktop/actions/workflows/test.yml/badge.svg)](https://github.com/rysk-tanaka/task-hub-desktop/actions/workflows/test.yml)
+[![build](https://github.com/rysk-tanaka/task-hub-desktop/actions/workflows/build.yml/badge.svg)](https://github.com/rysk-tanaka/task-hub-desktop/actions/workflows/build.yml)
+[![Tauri](https://img.shields.io/badge/Tauri-v2-24C8D8?logo=tauri&logoColor=white)](https://v2.tauri.app/)
 
 Obsidian Vaultと同じMarkdownファイルを読み書きするコンパニオンデスクトップアプリ。
 Tauri v2 + React + Rust 構成。
