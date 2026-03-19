@@ -6,7 +6,7 @@
 ///   <% tp.date.weekday("FORMAT", WEEKDAY, `WEEK_OFFSET`) %>
 ///   <% tp.file.title %>
 ///
-/// Dataview/Tasksクエリブロック内の構文はそのまま素通し。
+/// コードブロック内の構文も展開する（Obsidian Templater と同じ挙動）。
 use chrono::{Datelike, Duration, Local, NaiveDate};
 use regex::Regex;
 use std::sync::OnceLock;
@@ -22,16 +22,10 @@ pub enum TemplateError {
 }
 
 static TEMPLATE_RE: OnceLock<Regex> = OnceLock::new();
-static CODE_BLOCK_RE: OnceLock<Regex> = OnceLock::new();
 
 #[allow(clippy::unwrap_used)]
 fn template_re() -> &'static Regex {
     TEMPLATE_RE.get_or_init(|| Regex::new(r"<%\s*(.+?)\s*%>").unwrap())
-}
-
-#[allow(clippy::unwrap_used)]
-fn code_block_re() -> &'static Regex {
-    CODE_BLOCK_RE.get_or_init(|| Regex::new(r"(?s)```[a-z]*\n.*?```").unwrap())
 }
 
 /// FORMAT文字列をchronoフォーマットに変換する。
@@ -118,30 +112,27 @@ fn eval_expr(expr: &str, file_title: &str, today: NaiveDate) -> Result<String, T
 
 /// テンプレート文字列全体を展開する。
 ///
-/// コードブロック（```...```）内の構文はそのまま保持する。
+/// コードブロック内の `<% %>` 構文も展開する（Obsidian Templater と同じ挙動）。
 pub fn expand(template: &str, file_title: &str) -> Result<String, TemplateError> {
     let today = Local::now().date_naive();
+    expand_with_date(template, file_title, today)
+}
 
-    // コードブロックの位置を記録して保護する
-    let code_re = code_block_re();
+/// 日付を指定してテンプレートを展開する（テスト用）。
+fn expand_with_date(
+    template: &str,
+    file_title: &str,
+    today: NaiveDate,
+) -> Result<String, TemplateError> {
     let tmpl_re = template_re();
 
-    // コードブロックをプレースホルダに置換
-    let mut placeholders: Vec<String> = Vec::new();
-    let protected = code_re.replace_all(template, |caps: &regex::Captures| {
-        let idx = placeholders.len();
-        placeholders.push(caps[0].to_string());
-        format!("\x00CODE_BLOCK_{idx}\x00")
-    });
-
-    // Templater式を展開
     let mut result = String::new();
     let mut last_end = 0;
-    for caps in tmpl_re.captures_iter(&protected) {
+    for caps in tmpl_re.captures_iter(template) {
         let Some(m) = caps.get(0) else {
             continue;
         };
-        result.push_str(&protected[last_end..m.start()]);
+        result.push_str(&template[last_end..m.start()]);
         let expr = &caps[1];
         match eval_expr(expr, file_title, today) {
             Ok(expanded) => result.push_str(&expanded),
@@ -153,12 +144,7 @@ pub fn expand(template: &str, file_title: &str) -> Result<String, TemplateError>
         }
         last_end = m.end();
     }
-    result.push_str(&protected[last_end..]);
-
-    // プレースホルダを元に戻す
-    for (idx, block) in placeholders.iter().enumerate() {
-        result = result.replace(&format!("\x00CODE_BLOCK_{idx}\x00"), block);
-    }
+    result.push_str(&template[last_end..]);
 
     Ok(result)
 }
@@ -194,11 +180,12 @@ mod tests {
     }
 
     #[test]
-    fn test_code_block_passthrough() {
+    fn test_code_block_expanded() {
+        let today = date(2026, 3, 10);
         let tmpl = "# title\n```dataviewjs\n<% tp.date.now(\"YYYY\") %>\n```";
-        let result = expand(tmpl, "test").unwrap();
-        // コードブロック内は展開されない
-        assert!(result.contains("<% tp.date.now(\"YYYY\") %>"));
+        let result = expand_with_date(tmpl, "test", today).unwrap();
+        // コードブロック内も展開される
+        assert!(result.contains("```dataviewjs\n2026\n```"));
     }
 
     // ---- eval_expr ----
@@ -275,12 +262,13 @@ mod tests {
 
     #[test]
     fn expand_multiple_code_blocks() {
+        let today = date(2026, 3, 10);
         let tmpl = "```tasks\n<% tp.file.title %>\n```\n\n<% tp.file.title %>\n\n```dataview\n<% tp.date.now(\"YYYY\") %>\n```";
-        let result = expand(tmpl, "Note").unwrap();
-        // Code blocks preserved
-        assert!(result.contains("```tasks\n<% tp.file.title %>\n```"));
-        assert!(result.contains("```dataview\n<% tp.date.now(\"YYYY\") %>\n```"));
-        // Outside code blocks, expanded
+        let result = expand_with_date(tmpl, "Note", today).unwrap();
+        // コードブロック内も展開される
+        assert!(result.contains("```tasks\nNote\n```"));
+        assert!(result.contains("```dataview\n2026\n```"));
+        // コードブロック外も展開される
         assert!(result.contains("\n\nNote\n\n"));
     }
 

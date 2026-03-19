@@ -123,7 +123,7 @@ Obsidian Tasks プラグイン互換のチェックボックス記法。
 
 `template.rs` は moment.js 形式のフォーマット文字列を chrono に変換する。
 対応構文: `tp.date.now()`, `tp.date.weekday()`, `tp.file.title`。
-Dataview/Tasks のコードブロックはそのまま素通し。
+コードブロック内の `<% %>` 構文も展開する（Obsidian Templater と同じ挙動）。
 
 `moment_to_chrono()` の replace チェーンは順序依存。長いトークン（`DDD`）を短いトークン（`DD`）より先に処理すること。
 
