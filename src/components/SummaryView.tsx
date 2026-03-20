@@ -42,8 +42,8 @@ function StatCard({
 }
 
 function TaskRow({ task }: { task: Task }) {
-	const isOverdue =
-		task.due && new Date(task.due) < new Date(new Date().toDateString());
+	const todayStr = new Date().toLocaleDateString("sv-SE");
+	const isOverdue = task.due != null && task.due < todayStr;
 	return (
 		<div
 			style={{
