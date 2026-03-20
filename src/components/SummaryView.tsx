@@ -41,8 +41,7 @@ function StatCard({
 	);
 }
 
-function TaskRow({ task }: { task: Task }) {
-	const todayStr = new Date().toLocaleDateString("sv-SE");
+function TaskRow({ task, todayStr }: { task: Task; todayStr: string }) {
 	const isOverdue = task.due != null && task.due < todayStr;
 	return (
 		<div
@@ -128,6 +127,7 @@ function ProjectRow({ project }: { project: ProjectProgress }) {
 }
 
 export function SummaryView({ summary }: { summary: VaultSummary }) {
+	const todayStr = new Date().toLocaleDateString("sv-SE");
 	return (
 		<>
 			{/* サマリーカード */}
@@ -159,7 +159,11 @@ export function SummaryView({ summary }: { summary: VaultSummary }) {
 						<section style={styles.section}>
 							<h3 style={styles.sectionTitle}>🔴 期限超過</h3>
 							{summary.overdue.map((t) => (
-								<TaskRow key={`${t.source_file}:${t.line}`} task={t} />
+								<TaskRow
+									key={`${t.source_file}:${t.line}`}
+									task={t}
+									todayStr={todayStr}
+								/>
 							))}
 						</section>
 					)}
@@ -168,7 +172,11 @@ export function SummaryView({ summary }: { summary: VaultSummary }) {
 						<section style={styles.section}>
 							<h3 style={styles.sectionTitle}>📅 今日の期限</h3>
 							{summary.due_today.map((t) => (
-								<TaskRow key={`${t.source_file}:${t.line}`} task={t} />
+								<TaskRow
+									key={`${t.source_file}:${t.line}`}
+									task={t}
+									todayStr={todayStr}
+								/>
 							))}
 						</section>
 					)}
