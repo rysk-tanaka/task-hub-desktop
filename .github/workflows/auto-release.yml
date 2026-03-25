@@ -1,0 +1,82 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths: ['src-tauri/Cargo.toml']
+  workflow_dispatch:
+
+concurrency:
+  group: auto-release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  validate-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate branch
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::This workflow can only be run from the main branch (current: ${{ github.ref }})"
+          exit 1
+
+  create-release:
+    needs: validate-branch
+    permissions:
+      contents: write
+    uses: rysk-tanaka/workflows/.github/workflows/release-on-version-change.yml@main
+    with:
+      version_source: command
+      version_command: "awk '/^\\[package\\]$/{p=1;next}/^\\[/{p=0}p&&/^version[[:space:]]*=/{gsub(/\"/,\"\",$3);print $3;exit}' src-tauri/Cargo.toml"
+      tag_prefix: v
+      force_released_output: ${{ github.event_name == 'workflow_dispatch' }}
+    secrets: inherit
+
+  upload-artifacts:
+    needs: create-release
+    if: needs.create-release.outputs.released == 'true'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-latest
+          - runner: macos-15-intel
+          - runner: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: Install system dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm tauri build
+      - name: Upload macOS artifacts
+        if: runner.os == 'macOS'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ needs.create-release.outputs.tag }}" \
+            src-tauri/target/release/bundle/dmg/*.dmg --clobber
+      - name: Upload Linux artifacts
+        if: runner.os == 'Linux'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ needs.create-release.outputs.tag }}" \
+            src-tauri/target/release/bundle/deb/*.deb \
+            src-tauri/target/release/bundle/appimage/*.AppImage --clobber
