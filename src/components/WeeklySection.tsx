@@ -42,13 +42,17 @@ function groupItems(items: ListItem[]): TaskGroup[] {
 	return groups;
 }
 
+const INDENT_UNIT = 4;
+
 function ListItemRow({
 	item,
 	isParent,
+	hasChildren = false,
 	baseIndent = 0,
 }: {
 	item: ListItem;
 	isParent: boolean;
+	hasChildren?: boolean;
 	baseIndent?: number;
 }) {
 	const status = getTaskStatus(item.kind);
@@ -65,7 +69,10 @@ function ListItemRow({
 					8 +
 					(isParent
 						? 0
-						: Math.max(0, Math.floor((item.indent - baseIndent) / 4) - 1) * 16),
+						: Math.max(
+								0,
+								Math.floor((item.indent - baseIndent) / INDENT_UNIT) - 1,
+							) * 16),
 				paddingTop: isParent ? 6 : 3,
 				paddingBottom: isParent ? 4 : 3,
 				fontSize: "var(--font-base)",
@@ -78,7 +85,7 @@ function ListItemRow({
 				style={{
 					flex: 1,
 					color: isDimmed ? "var(--text-muted)" : "var(--text)",
-					fontWeight: isParent ? 500 : "normal",
+					fontWeight: isParent && hasChildren ? 500 : "normal",
 					textDecoration:
 						status === "done" || status === "cancelled"
 							? "line-through"
@@ -105,7 +112,11 @@ function ListItemRow({
 function TaskGroupBlock({ group }: { group: TaskGroup }) {
 	return (
 		<div style={styles.taskGroup}>
-			<ListItemRow item={group.parent} isParent={true} />
+			<ListItemRow
+				item={group.parent}
+				isParent={true}
+				hasChildren={group.children.length > 0}
+			/>
 			{group.children.length > 0 && (
 				<div style={styles.childrenBlock}>
 					{group.children.map((child) => (
