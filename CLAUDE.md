@@ -131,6 +131,7 @@ Obsidian Tasks プラグイン互換のチェックボックス記法。
 ## CI
 
 GitHub Actions で `lint.yml`（Frontend + Backend）、`test.yml`（Backend）、`build.yml`（Tauri ビルド）を実行する。
+`auto-release.yml` は `src-tauri/Cargo.toml` のバージョン変更で GitHub Release 作成 + macOS / Linux 向け成果物アップロードを自動化する。共有ワークフロー `release-on-version-change.yml` を `version_source: command` で利用（`Cargo.toml` がサブディレクトリにあるため）。
 `claude-code-review.yml`（`claude-review` ラベルで自動レビュー）、`issue-implement.yml`（`claude-implement` ラベルで自動実装）は共有リポジトリ `rysk-tanaka/workflows` を参照する。
 actions/checkout@v6, actions/setup-node@v6 は正式リリース済み。AI レビューが「v6 は存在しない」と誤検知することがあるが無視してよい。
 Backend の clippy は `-- -D warnings` 付きで全警告をエラー扱いにしている。
