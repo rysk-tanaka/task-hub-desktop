@@ -3,7 +3,7 @@ import type { ListItem, ListItemKind, TaskStatus, WeeklyTasks } from "../types";
 const STATUS_MARKER: Record<TaskStatus, string> = {
 	todo: "\u2b1c",
 	done: "\u2705",
-	in_progress: "\ud83d\udd04",
+	in_progress: "\u25b6\ufe0f",
 	waiting: "\u23f8\ufe0f",
 	cancelled: "\u274c",
 };
