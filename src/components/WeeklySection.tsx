@@ -21,7 +21,40 @@ function formatRange(start: string, end: string): string {
 	return `${s.getMonth() + 1}/${s.getDate()} ~ ${e.getMonth() + 1}/${e.getDate()}`;
 }
 
-function ListItemRow({ item }: { item: ListItem }) {
+interface TaskGroup {
+	parent: ListItem;
+	children: ListItem[];
+}
+
+function groupItems(items: ListItem[]): TaskGroup[] {
+	const groups: TaskGroup[] = [];
+	let i = 0;
+	while (i < items.length) {
+		const parent = items[i];
+		const children: ListItem[] = [];
+		i += 1;
+		while (i < items.length && items[i].indent > parent.indent) {
+			children.push(items[i]);
+			i += 1;
+		}
+		groups.push({ parent, children });
+	}
+	return groups;
+}
+
+const INDENT_UNIT = 4;
+
+function ListItemRow({
+	item,
+	isParent,
+	hasChildren = false,
+	baseIndent = 0,
+}: {
+	item: ListItem;
+	isParent: boolean;
+	hasChildren?: boolean;
+	baseIndent?: number;
+}) {
 	const status = getTaskStatus(item.kind);
 	const isBullet = item.kind === "bullet";
 	const isDimmed = isBullet || status === "done" || status === "cancelled";
@@ -29,8 +62,20 @@ function ListItemRow({ item }: { item: ListItem }) {
 	return (
 		<div
 			style={{
-				...styles.taskRow,
-				paddingLeft: 8 + Math.floor(item.indent / 4) * 20,
+				display: "flex",
+				alignItems: "baseline",
+				gap: 8,
+				paddingLeft:
+					8 +
+					(isParent
+						? 0
+						: Math.max(
+								0,
+								Math.floor((item.indent - baseIndent) / INDENT_UNIT) - 1,
+							) * 16),
+				paddingTop: isParent ? 6 : 3,
+				paddingBottom: isParent ? 4 : 3,
+				fontSize: "var(--font-base)",
 			}}
 		>
 			<span style={{ width: 20, textAlign: "center", flexShrink: 0 }}>
@@ -40,6 +85,7 @@ function ListItemRow({ item }: { item: ListItem }) {
 				style={{
 					flex: 1,
 					color: isDimmed ? "var(--text-muted)" : "var(--text)",
+					fontWeight: isParent && hasChildren ? 500 : "normal",
 					textDecoration:
 						status === "done" || status === "cancelled"
 							? "line-through"
@@ -58,6 +104,30 @@ function ListItemRow({ item }: { item: ListItem }) {
 				>
 					{item.start}
 				</span>
+			)}
+		</div>
+	);
+}
+
+function TaskGroupBlock({ group }: { group: TaskGroup }) {
+	return (
+		<div style={styles.taskGroup}>
+			<ListItemRow
+				item={group.parent}
+				isParent={true}
+				hasChildren={group.children.length > 0}
+			/>
+			{group.children.length > 0 && (
+				<div style={styles.childrenBlock}>
+					{group.children.map((child) => (
+						<ListItemRow
+							key={`${child.source_file}:${child.line}`}
+							item={child}
+							isParent={false}
+							baseIndent={group.parent.indent}
+						/>
+					))}
+				</div>
 			)}
 		</div>
 	);
@@ -141,10 +211,10 @@ export function WeeklySection({
 				weeklyTasks.projects.map((project) => (
 					<div key={project.file} style={{ marginBottom: 16 }}>
 						<h4 style={styles.projectName}>{project.name}</h4>
-						{project.items.map((item) => (
-							<ListItemRow
-								key={`${item.source_file}:${item.line}`}
-								item={item}
+						{groupItems(project.items).map((group) => (
+							<TaskGroupBlock
+								key={`${group.parent.source_file}:${group.parent.line}`}
+								group={group}
 							/>
 						))}
 					</div>
@@ -179,12 +249,13 @@ const styles: Record<string, React.CSSProperties> = {
 		color: "var(--accent)",
 		margin: "0 0 6px 0",
 	},
-	taskRow: {
-		display: "flex",
-		alignItems: "baseline",
-		gap: 8,
-		padding: "4px 0 4px 8px",
+	taskGroup: {
 		borderBottom: "1px solid var(--border)",
-		fontSize: "var(--font-base)",
+		padding: "4px 0",
+	},
+	childrenBlock: {
+		borderLeft: "2px solid var(--border)",
+		marginLeft: 18,
+		paddingLeft: 8,
 	},
 };
