@@ -36,6 +36,9 @@
       "icons/icon.ico",
       "icons/icon.icns",
       "icons/icon.png"
-    ]
+    ],
+    "resources": {
+      "../assets/LICENSE": "ICON_LICENSE"
+    }
   }
 }
