@@ -32,3 +32,4 @@
 - [ ] フロントエンド E2E テストの CI ジョブ追加
 - [x] ~~Tauri アプリのリリースビルド・配布パイプライン（GitHub Releases 等）~~ → `auto-release.yml` で macOS / Linux ビルド・配布を自動化
 - [x] ~~配布物にアイコンライセンスファイルを同梱する (#12)~~ → `bundle.resources` で `assets/LICENSE` を `ICON_LICENSE` として同梱
+- [ ] Homebrew tap による自動インストール対応 (#14)
