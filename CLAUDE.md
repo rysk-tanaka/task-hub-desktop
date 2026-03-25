@@ -131,10 +131,12 @@ Obsidian Tasks プラグイン互換のチェックボックス記法。
 ## CI
 
 GitHub Actions で `lint.yml`（Frontend + Backend）、`test.yml`（Backend）、`build.yml`（Tauri ビルド）を実行する。
+`claude-code-review.yml`（`claude-review` ラベルで自動レビュー）、`issue-implement.yml`（`claude-implement` ラベルで自動実装）は共有リポジトリ `rysk-tanaka/workflows` を参照する。
 actions/checkout@v6, actions/setup-node@v6 は正式リリース済み。AI レビューが「v6 は存在しない」と誤検知することがあるが無視してよい。
 Backend の clippy は `-- -D warnings` 付きで全警告をエラー扱いにしている。
 
-Clippy の `unwrap_used` / `expect_used` は Cargo.toml で `warn` レベルに設定しているため、
+Clippy は `pedantic` を `warn` レベルで有効にしている。
+`unwrap_used` / `expect_used` も `warn` レベルに設定しているため、
 プロダクションコードで使用する場合は `#[allow(clippy::unwrap_used)]` 等で個別許容すること。
 正規表現リテラルの初期化や `run()` のエントリーポイントなど、パニックが許容される箇所に限定する。
 `dbg_macro` は `deny` レベルのため、デバッグ用の `dbg!()` がコードに残っていると CI が即失敗する。
@@ -161,7 +163,7 @@ Renovate（GitHub App）で依存の自動更新 PR を作成する。設定は 
 - Tauri プラグイン: `shell`, `fs`, `store`（Vault パス永続化）, `dialog`（フォルダ選択・確認ダイアログ）を使用。capabilities/default.json で権限管理
 - shell プラグインの open スコープは `tauri.conf.json` の `plugins.shell.open` で正規表現制御（`obsidian://` 等を許可）
 - エラーハンドリング: Rust 側は `anyhow::Result` → `.map_err(|e| e.to_string())` で文字列化して IPC 返却
-- アイコン: `src-tauri/icons/` に RGBA PNG が必要（`tauri::generate_context!()` がコンパイル時に検証する）
+- アイコン: `assets/icon.svg` がソース。`pnpm tauri icon assets/icon.svg` で `src-tauri/icons/` に全プラットフォーム向けアイコンを一括生成する。`tauri::generate_context!()` がコンパイル時に検証するため RGBA PNG が必須。ライセンス情報は `assets/LICENSE`（Lucide Icons, ISC License）
 
 ## テスト方針
 

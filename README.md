@@ -97,3 +97,7 @@ Tauri Command (lib.rs)
 - `invoke()` は `src/hooks/useVault.ts` にのみ記述（Componentから直接呼ばない）
 - ファイル変更は `vault_watcher` が検知し、イベントでフロントに通知
 - Vaultパスはアプリ設定に保存し、起動時に復元
+
+## ライセンス
+
+アプリアイコンのライセンス情報は [assets/LICENSE](./assets/LICENSE) を参照してください。
