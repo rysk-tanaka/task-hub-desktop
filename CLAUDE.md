@@ -131,8 +131,9 @@ Obsidian Tasks プラグイン互換のチェックボックス記法。
 ## CI
 
 GitHub Actions で `lint.yml`（Frontend + Backend）、`test.yml`（Backend）、`build.yml`（Tauri ビルド）を実行する。
-`auto-release.yml` は `src-tauri/Cargo.toml` のバージョン変更で GitHub Release 作成 + macOS / Linux 向け成果物アップロードを自動化する。共有ワークフロー `release-on-version-change.yml` を `version_source: command` で利用（`Cargo.toml` がサブディレクトリにあるため）。
+`auto-release.yml` は `src-tauri/Cargo.toml` のバージョン変更で GitHub Release 作成 + macOS（Apple Silicon / Intel）・Linux 向け成果物アップロードを自動化する。共有ワークフロー `release-on-version-change.yml` を `version_source: command` で利用（`Cargo.toml` がサブディレクトリにあるため）。
 `claude-code-review.yml`（`claude-review` ラベルで自動レビュー）、`issue-implement.yml`（`claude-implement` ラベルで自動実装）は共有リポジトリ `rysk-tanaka/workflows` を参照する。
+`claude.yml` は issue/PR コメントの `@claude` メンションで Claude Code を起動する。`issue-scan.yml` は毎日定期実行で issue をスキャンする。
 actions/checkout@v6, actions/setup-node@v6 は正式リリース済み。AI レビューが「v6 は存在しない」と誤検知することがあるが無視してよい。
 Backend の clippy は `-- -D warnings` 付きで全警告をエラー扱いにしている。
 
@@ -146,7 +147,9 @@ Clippy は `pedantic` を `warn` レベルで有効にしている。
 
 Renovate（GitHub App）で依存の自動更新 PR を作成する。設定は `renovate.json`。
 対象マネージャ: `npm`, `cargo`, `github-actions`, `pre-commit`。
-マイナー・パッチは automerge、メジャーは手動レビュー。
+マイナー・パッチは `npm`, `cargo`, `pre-commit` のみ automerge（`github-actions` は手動）。メジャーは全て手動レビュー。
+
+pre-commit フック（`.pre-commit-config.yaml`）で `end-of-file-fixer` と `trailing-whitespace` を適用している（`src-tauri/gen/` は除外）。
 
 ## React パターン
 
