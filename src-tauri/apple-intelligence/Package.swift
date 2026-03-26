@@ -3,6 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "apple-intelligence",
+    platforms: [.macOS(.v14)],
     products: [
         .library(
             name: "AppleIntelligence",
