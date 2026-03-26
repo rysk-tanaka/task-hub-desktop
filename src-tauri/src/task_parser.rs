@@ -114,9 +114,9 @@ struct DateMetadata {
     start: Option<NaiveDate>,
 }
 
-/// テキストから日付絵文字（📅 ✅ 🛫）をパースし、メタデータを返す
-fn extract_date_metadata(text: &str) -> DateMetadata {
-    let date_re = date_regex();
+/// テキストから日付絵文字（📅 ✅ 🛫）をパースし、メタデータを返す。
+/// ⏳（scheduled）は正規表現にマッチするが、現時点では未対応のため無視する。
+fn extract_date_metadata(text: &str, date_re: &Regex) -> DateMetadata {
     let mut meta = DateMetadata {
         due: None,
         done_date: None,
@@ -150,7 +150,7 @@ pub fn parse_tasks(content: &str, source_file: &str) -> Vec<Task> {
         let status_char = caps[2].chars().next().unwrap_or(' ');
         let text_raw = caps[3].trim().to_string();
 
-        let meta = extract_date_metadata(&text_raw);
+        let meta = extract_date_metadata(&text_raw, date_re);
 
         // 絵文字とメタデータを除いたテキスト
         let text = date_re.replace_all(&text_raw, "").trim().to_string();
@@ -194,7 +194,7 @@ pub fn parse_list_items(content: &str, source_file: &str) -> Vec<ListItem> {
             let status_char = caps[2].chars().next().unwrap_or(' ');
             let text_raw = caps[3].trim().to_string();
 
-            let meta = extract_date_metadata(&text_raw);
+            let meta = extract_date_metadata(&text_raw, date_re);
 
             let text = date_re.replace_all(&text_raw, "").trim().to_string();
 
