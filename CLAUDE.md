@@ -115,6 +115,8 @@ App → handleCreateNote("daily")
 - **async ブリッジ**: Foundation Models API は Swift async/await のため、Swift 側で `DispatchSemaphore` + `Task {}` で同期化。Tauri コマンドは非メインスレッドで実行されるためデッドロックしない
 - **エラーハンドリング**: Swift → Rust 間は JSON 文字列（`{"ok":"text"}` / `{"error":"type","message":"msg"}`）で通信。Rust 側で `serde_json` パース
 - **SDK 条件コンパイル**: `#if canImport(FoundationModels)` で macOS 26 SDK がない環境（CI 等）でもビルド可能
+- **build-dependencies の `swift-rs`**: `[build-dependencies]` に無条件で配置している。`swift-rs` は `tauri-build` の推移的依存として Linux CI でも既にコンパイルされるため、target-specific に分ける利点がない
+- **`with_package` の名前**: `SwiftLinker::with_package("AppleIntelligence", ...)` の第1引数は `cargo:rustc-link-lib=static={name}` に使われる。SwiftPM のターゲット名 `AppleIntelligence` が `libAppleIntelligence.a` を生成するため、パッケージ名（`apple-intelligence`）ではなくターゲット名を指定すること
 
 ## Vault ディレクトリ規約
 
