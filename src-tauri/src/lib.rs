@@ -1,3 +1,4 @@
+mod ai_bridge;
 // note_creator 等からの追加利用を予定（現在は task_parser のみ）
 #[allow(dead_code)]
 mod frontmatter;
@@ -119,6 +120,12 @@ async fn get_weekly_tasks(
     task_parser::build_weekly_tasks(&vault_root, week_offset).map_err(|e| e.to_string())
 }
 
+/// Apple Intelligence の利用可否を返す
+#[tauri::command]
+fn get_ai_availability() -> bool {
+    ai_bridge::is_available()
+}
+
 /// Daily / Weekly Note を生成する（既存なら既存パスを返す）
 #[tauri::command]
 async fn create_note(
@@ -196,6 +203,7 @@ pub fn run() {
             get_vault_summary,
             get_weekly_tasks,
             create_note,
+            get_ai_availability,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

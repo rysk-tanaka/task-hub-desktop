@@ -58,6 +58,8 @@ pnpm exec tsc --noEmit -p tsconfig.app.json
 | `get_weekly_tasks` | 指定週のプロジェクト別タスク取得（週間ビュー用） |
 | `create_note` | Daily/Weekly Note 生成（テンプレート展開、既存なら既存パスを返す） |
 
+| `get_ai_availability` | Apple Intelligence の利用可否を返す |
+
 コマンド関数は `lib.rs` 内で非 `pub` にすること（lib/bin 間のマクロ重複を回避するため）。
 
 ### Rust モジュール構成
@@ -69,6 +71,7 @@ pnpm exec tsc --noEmit -p tsconfig.app.json
 | `template` | Obsidian Templater 構文のサブセット展開 |
 | `note_creator` | Daily/Weekly Note ファイル生成・重複チェック |
 | `vault_watcher` | notify による Vault ファイル監視・イベント emit |
+| `ai_bridge` | Apple Foundation Models ブリッジ（macOS 専用、非 macOS はスタブ） |
 
 ### フロントエンド UI 構成
 
@@ -102,6 +105,16 @@ App → handleCreateNote("daily")
 - **`archived: true` スキップ**: フロントマターに `archived: true` があるファイルは集計対象外
 - **行番号オフセット**: フロントマター分の行数を加算して正確なタスク行番号を維持
 - **パース失敗時の安全策**: フロントマターとして無効（水平線 `---` 等）な場合は元の content 全体をパースする
+
+### Apple Intelligence ブリッジ（`ai_bridge.rs` + Swift Package）
+
+`swift-rs` crate で Rust → Swift FFI を実現し、macOS 26+ の Foundation Models（on-device AI）を呼び出す。
+
+- **Swift Package**: `src-tauri/apple-intelligence/` に SwiftPM パッケージとして配置。`build.rs` の `SwiftLinker` がビルド時にコンパイル・リンクする
+- **プラットフォーム分離**: `#[cfg(target_os = "macos")]` で macOS 専用コードを分離。非 macOS ではスタブ（`is_available()` → `false`）を提供
+- **async ブリッジ**: Foundation Models API は Swift async/await のため、Swift 側で `DispatchSemaphore` + `Task {}` で同期化。Tauri コマンドは非メインスレッドで実行されるためデッドロックしない
+- **エラーハンドリング**: Swift → Rust 間は JSON 文字列（`{"ok":"text"}` / `{"error":"type","message":"msg"}`）で通信。Rust 側で `serde_json` パース
+- **SDK 条件コンパイル**: `#if canImport(FoundationModels)` で macOS 26 SDK がない環境（CI 等）でもビルド可能
 
 ## Vault ディレクトリ規約
 
