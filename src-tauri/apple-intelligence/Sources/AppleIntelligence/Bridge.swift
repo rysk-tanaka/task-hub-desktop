@@ -8,23 +8,21 @@ import FoundationModels
 // MARK: - JSON helpers
 
 private func jsonOk(_ text: String) -> String {
-    let escaped = text
-        .replacingOccurrences(of: "\\", with: "\\\\")
-        .replacingOccurrences(of: "\"", with: "\\\"")
-        .replacingOccurrences(of: "\n", with: "\\n")
-        .replacingOccurrences(of: "\r", with: "\\r")
-        .replacingOccurrences(of: "\t", with: "\\t")
-    return "{\"ok\":\"\(escaped)\"}"
+    let obj: [String: String] = ["ok": text]
+    guard let data = try? JSONSerialization.data(withJSONObject: obj),
+          let json = String(data: data, encoding: .utf8) else {
+        return #"{"ok":""}"#
+    }
+    return json
 }
 
 private func jsonErr(_ error: String, _ message: String) -> String {
-    let escaped = message
-        .replacingOccurrences(of: "\\", with: "\\\\")
-        .replacingOccurrences(of: "\"", with: "\\\"")
-        .replacingOccurrences(of: "\n", with: "\\n")
-        .replacingOccurrences(of: "\r", with: "\\r")
-        .replacingOccurrences(of: "\t", with: "\\t")
-    return "{\"error\":\"\(error)\",\"message\":\"\(escaped)\"}"
+    let obj: [String: String] = ["error": error, "message": message]
+    guard let data = try? JSONSerialization.data(withJSONObject: obj),
+          let json = String(data: data, encoding: .utf8) else {
+        return #"{"error":"\#(error)","message":""}"#
+    }
+    return json
 }
 
 // Thread-safe container for passing results across Task boundaries in Swift 6.
@@ -84,7 +82,13 @@ public func aiGenerate(system: SRString, user: SRString) -> SRString {
                 box.value = jsonErr("rate_limited", "Rate limit exceeded")
             case .concurrentRequests:
                 box.value = jsonErr("concurrent_requests", "Too many concurrent requests")
-            default:
+            case .decodingFailure:
+                box.value = jsonErr("decoding_failure", "Model output could not be decoded")
+            case .refusal:
+                box.value = jsonErr("refusal", "Model refused to generate content")
+            case .unsupportedGuide:
+                box.value = jsonErr("unsupported_guide", "Requested generation guide is not supported")
+            @unknown default:
                 box.value = jsonErr("generation_error", error.localizedDescription)
             }
         } catch {

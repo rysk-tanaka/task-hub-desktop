@@ -4,8 +4,9 @@
 //! 非 macOS 環境ではスタブが使用され、`is_available()` は常に `false` を返す。
 //!
 //! # Safety
-//! Swift FFI 呼び出しは Tauri のワーカースレッドから実行されることを前提としている。
-//! メインスレッドから呼ぶと Swift 側の `DispatchSemaphore.wait()` がデッドロックする可能性がある。
+//! `generate()` は Swift 側で `DispatchSemaphore.wait()` によりブロックするため、
+//! メインスレッドから呼び出すとデッドロックする可能性がある。Tauri のワーカースレッドから呼ぶこと。
+//! `is_available()` は非ブロッキングであり、任意のスレッドから安全に呼び出せる。
 
 // generate() と関連型は後続 issue (#18, #19, #20) で使用される
 #[allow(dead_code)]
