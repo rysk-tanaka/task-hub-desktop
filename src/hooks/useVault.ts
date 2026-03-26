@@ -95,6 +95,10 @@ export function useVault() {
 		setVaultRootState(path);
 	}, []);
 
+	const getAiAvailability = useCallback(async () => {
+		return invoke<boolean>("get_ai_availability");
+	}, []);
+
 	const createNote = useCallback(
 		async (kind: NoteKind): Promise<CreateNoteResponse> => {
 			return invoke<CreateNoteResponse>("create_note", {
@@ -122,5 +126,6 @@ export function useVault() {
 		setVaultRoot,
 		createNote,
 		refreshSummary,
+		getAiAvailability,
 	};
 }

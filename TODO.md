@@ -21,6 +21,13 @@
 - [ ] サイドカー呼び出し対応（Cargo.toml に「将来拡張用」コメントあり）
 - [ ] Templater 構文の拡張（`tp.date.now` / `tp.date.weekday` / `tp.file.title` 以外）
 
+## Apple Intelligence 連携
+
+- [x] ~~Foundation Models Swift Bridge 基盤（#17）~~ → `swift-rs` + SwiftPM で Rust↔Swift FFI 実装済み
+- [ ] スタンドアップ報告文の自動生成（#18）
+- [ ] Weekly Note サマリの自動生成（#19）
+- [ ] 自然言語 Vault 検索（#20）
+
 ## テスト
 
 - [ ] フロントエンド E2E テスト（Playwright / WebdriverIO 等）
