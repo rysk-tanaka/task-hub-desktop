@@ -107,6 +107,36 @@ fn parse_date(s: &str) -> Option<NaiveDate> {
     NaiveDate::parse_from_str(s, "%Y-%m-%d").ok()
 }
 
+/// 日付絵文字メタデータのパース結果
+struct DateMetadata {
+    due: Option<NaiveDate>,
+    done_date: Option<NaiveDate>,
+    start: Option<NaiveDate>,
+}
+
+/// テキストから日付絵文字（📅 ✅ 🛫）をパースし、メタデータを返す。
+/// ⏳（scheduled）は正規表現にマッチするが、現時点では未対応のため無視する。
+fn extract_date_metadata(text: &str, date_re: &Regex) -> DateMetadata {
+    let mut meta = DateMetadata {
+        due: None,
+        done_date: None,
+        start: None,
+    };
+
+    for date_cap in date_re.captures_iter(text) {
+        let emoji = &date_cap[1];
+        let date = parse_date(&date_cap[2]);
+        match emoji {
+            "📅" => meta.due = date,
+            "✅" => meta.done_date = date,
+            "🛫" => meta.start = date,
+            _ => {}
+        }
+    }
+
+    meta
+}
+
 /// Markdownファイルの内容からタスク一覧を抽出する
 pub fn parse_tasks(content: &str, source_file: &str) -> Vec<Task> {
     let task_re = task_regex();
@@ -120,20 +150,7 @@ pub fn parse_tasks(content: &str, source_file: &str) -> Vec<Task> {
         let status_char = caps[2].chars().next().unwrap_or(' ');
         let text_raw = caps[3].trim().to_string();
 
-        let mut due = None;
-        let mut done_date = None;
-        let mut start = None;
-
-        for date_cap in date_re.captures_iter(&text_raw) {
-            let emoji = &date_cap[1];
-            let date = parse_date(&date_cap[2]);
-            match emoji {
-                "📅" => due = date,
-                "✅" => done_date = date,
-                "🛫" => start = date,
-                _ => {}
-            }
-        }
+        let meta = extract_date_metadata(&text_raw, date_re);
 
         // 絵文字とメタデータを除いたテキスト
         let text = date_re.replace_all(&text_raw, "").trim().to_string();
@@ -141,9 +158,9 @@ pub fn parse_tasks(content: &str, source_file: &str) -> Vec<Task> {
         tasks.push(Task {
             text,
             status: parse_status(status_char),
-            due,
-            done_date,
-            start,
+            due: meta.due,
+            done_date: meta.done_date,
+            start: meta.start,
             source_file: source_file.to_string(),
             line: line_idx + 1,
         });
@@ -177,20 +194,7 @@ pub fn parse_list_items(content: &str, source_file: &str) -> Vec<ListItem> {
             let status_char = caps[2].chars().next().unwrap_or(' ');
             let text_raw = caps[3].trim().to_string();
 
-            let mut due = None;
-            let mut done_date = None;
-            let mut start = None;
-
-            for date_cap in date_re.captures_iter(&text_raw) {
-                let emoji = &date_cap[1];
-                let date = parse_date(&date_cap[2]);
-                match emoji {
-                    "📅" => due = date,
-                    "✅" => done_date = date,
-                    "🛫" => start = date,
-                    _ => {}
-                }
-            }
+            let meta = extract_date_metadata(&text_raw, date_re);
 
             let text = date_re.replace_all(&text_raw, "").trim().to_string();
 
@@ -198,9 +202,9 @@ pub fn parse_list_items(content: &str, source_file: &str) -> Vec<ListItem> {
                 text,
                 kind: ListItemKind::Task(parse_status(status_char)),
                 indent,
-                due,
-                done_date,
-                start,
+                due: meta.due,
+                done_date: meta.done_date,
+                start: meta.start,
                 source_file: source_file.to_string(),
                 line: line_idx + 1,
             });
