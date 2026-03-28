@@ -8,8 +8,6 @@
 //! メインスレッドから呼び出すとデッドロックする可能性がある。Tauri のワーカースレッドから呼ぶこと。
 //! `is_available()` は非ブロッキングであり、任意のスレッドから安全に呼び出せる。
 
-// generate() と関連型は後続 issue (#18, #19, #20) で使用される
-#[allow(dead_code)]
 #[cfg(target_os = "macos")]
 mod platform {
     use serde::Deserialize;
@@ -53,7 +51,6 @@ mod platform {
     }
 }
 
-#[allow(dead_code)]
 #[cfg(not(target_os = "macos"))]
 mod platform {
     pub fn is_available() -> bool {
@@ -66,7 +63,7 @@ mod platform {
 }
 
 pub use platform::is_available;
-// generate は後続 issue で pub use する
+pub use platform::generate;
 
 #[cfg(test)]
 mod tests {

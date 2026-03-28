@@ -25,7 +25,7 @@
 
 - [x] ~~Foundation Models Swift Bridge 基盤（#17）~~ → `swift-rs` + SwiftPM で Rust↔Swift FFI 実装済み
 - [ ] スタンドアップ報告文の自動生成（#18）
-- [ ] Weekly Note サマリの自動生成（#19）
+- [x] ~~Weekly Note サマリの自動生成（#19）~~ → `generate_weekly_summary` コマンドで AI サマリ生成・追記を実装
 - [ ] 自然言語 Vault 検索（#20）
 
 ## テスト

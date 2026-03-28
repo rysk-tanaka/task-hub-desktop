@@ -4,6 +4,7 @@
 
 use std::path::{Path, PathBuf};
 
+use anyhow::Context;
 use chrono::{Datelike, IsoWeek, Local};
 
 use crate::template;
@@ -60,6 +61,80 @@ fn default_template(kind: &crate::NoteKind, title: &str) -> String {
             "# {title}\n\n## 振り返り\n\n-\n"
         ),
     }
+}
+
+/// Weekly Note のファイルパスを返す（`60_Weekly/{week_str}.md`）
+pub fn weekly_note_path(vault_root: &Path, week_str: &str) -> PathBuf {
+    vault_root.join("60_Weekly").join(format!("{week_str}.md"))
+}
+
+const AI_SUMMARY_HEADING: &str = "## AI 週次サマリ";
+const AI_SUMMARY_END: &str = "<!-- /ai-weekly-summary -->";
+
+/// Weekly Note に AI サマリセクションを追記・上書きする。
+/// 既に `## AI 週次サマリ` セクションがある場合は内容を差し替え、
+/// なければファイル末尾に追加する。
+/// セクションの終端は `<!-- /ai-weekly-summary -->` デリミタで管理し、
+/// AI 生成テキスト内の `##` 見出しと区別する。
+pub fn append_ai_summary(note_path: &Path, summary: &str) -> anyhow::Result<()> {
+    let content = std::fs::read_to_string(note_path)
+        .with_context(|| format!("failed to read: {}", note_path.display()))?;
+
+    let section_body = format!("\n\n{summary}\n\n{AI_SUMMARY_END}\n");
+
+    // 行頭の `## AI 週次サマリ` のみマッチ（部分一致や ### レベルとの誤認を防ぐ）
+    let heading_start = if content.starts_with(AI_SUMMARY_HEADING) {
+        Some(0)
+    } else {
+        content
+            .find(&format!("\n{AI_SUMMARY_HEADING}"))
+            .map(|pos| pos + 1) // '\n' の次の位置
+    };
+
+    let new_content = if let Some(heading_start) = heading_start {
+        let after_heading = heading_start + AI_SUMMARY_HEADING.len();
+        let rest = &content[after_heading..];
+
+        // end delimiter があればそこまで、なければ次の ## ヘッダか EOF
+        let section_end = if let Some(pos) = rest.find(AI_SUMMARY_END) {
+            let end_marker_end = after_heading + pos + AI_SUMMARY_END.len();
+            // delimiter 直後の改行も含める
+            if content.as_bytes().get(end_marker_end) == Some(&b'\n') {
+                end_marker_end + 1
+            } else {
+                end_marker_end
+            }
+        } else {
+            rest.find("\n## ")
+                .map_or(content.len(), |pos| after_heading + pos)
+        };
+
+        let mut result = String::with_capacity(content.len());
+        result.push_str(&content[..heading_start]);
+        result.push_str(AI_SUMMARY_HEADING);
+        result.push_str(&section_body);
+
+        if section_end < content.len() {
+            result.push_str(&content[section_end..]);
+        }
+
+        if !result.ends_with('\n') {
+            result.push('\n');
+        }
+        result
+    } else {
+        let mut result = content.clone();
+        if !result.ends_with('\n') {
+            result.push('\n');
+        }
+        result.push('\n');
+        result.push_str(AI_SUMMARY_HEADING);
+        result.push_str(&section_body);
+        result
+    };
+
+    std::fs::write(note_path, new_content)?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -147,5 +222,100 @@ mod tests {
         assert!(content.contains("Custom template"));
         // tp.file.title should have been expanded to today's date
         assert!(!content.contains("tp.file.title"));
+    }
+
+    // ---- weekly_note_path ----
+
+    #[test]
+    fn weekly_note_path_format() {
+        let vault = Path::new("/vault");
+        let path = weekly_note_path(vault, "2026-W13");
+        assert_eq!(path, PathBuf::from("/vault/60_Weekly/2026-W13.md"));
+    }
+
+    // ---- append_ai_summary ----
+
+    #[test]
+    fn append_ai_summary_to_existing_section() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let note = tmp.path().join("note.md");
+        fs::write(&note, "# 2026-W13\n\n## 振り返り\n\n- ok\n\n## AI 週次サマリ\n\n古いサマリ\n").expect("write");
+
+        append_ai_summary(&note, "新しいサマリ").expect("append");
+        let content = fs::read_to_string(&note).expect("read");
+        assert!(content.contains("新しいサマリ"));
+        assert!(!content.contains("古いサマリ"));
+        assert!(content.contains("## 振り返り"));
+        assert!(content.ends_with('\n'));
+    }
+
+    #[test]
+    fn append_ai_summary_to_file_without_section() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let note = tmp.path().join("note.md");
+        let review_heading = "## \u{632F}\u{308A}\u{8FD4}\u{308A}";
+        fs::write(&note, format!("# 2026-W13\n\n{review_heading}\n\n- ok\n")).expect("write");
+
+        append_ai_summary(&note, "新規サマリ").expect("append");
+        let content = fs::read_to_string(&note).expect("read");
+        assert!(content.contains("新規サマリ"));
+        assert!(content.contains(AI_SUMMARY_END));
+        assert!(content.contains(review_heading));
+        assert!(content.ends_with('\n'));
+    }
+
+    #[test]
+    fn append_ai_summary_preserves_following_sections() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let note = tmp.path().join("note.md");
+        fs::write(
+            &note,
+            "# 2026-W13\n\n## AI 週次サマリ\n\n古い内容\n\n## メモ\n\n残す内容\n",
+        ).expect("write");
+
+        append_ai_summary(&note, "更新サマリ").expect("append");
+        let content = fs::read_to_string(&note).expect("read");
+        assert!(content.contains("更新サマリ"));
+        assert!(!content.contains("古い内容"));
+        assert!(content.contains("## メモ\n\n残す内容"));
+    }
+
+    #[test]
+    fn append_ai_summary_with_headings_in_body() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let note = tmp.path().join("note.md");
+        fs::write(&note, "# 2026-W13\n\n## メモ\n\n残す内容\n").expect("write");
+
+        let summary_with_headings = "## 成果\n\n良かった\n\n## 課題\n\nもう少し";
+        append_ai_summary(&note, summary_with_headings).expect("first");
+
+        let content = fs::read_to_string(&note).expect("read");
+        assert!(content.contains("## 成果"));
+        assert!(content.contains("## 課題"));
+        assert!(content.contains("## メモ\n\n残す内容"));
+
+        // 2 回目の書き込みで古い AI 内容が完全に置換されること
+        append_ai_summary(&note, "更新済み").expect("second");
+        let content2 = fs::read_to_string(&note).expect("read");
+        assert!(content2.contains("更新済み"));
+        assert!(!content2.contains("## 成果"));
+        assert!(!content2.contains("## 課題"));
+        assert!(content2.contains("## メモ\n\n残す内容"));
+        assert_eq!(content2.matches("## AI 週次サマリ").count(), 1);
+    }
+
+    #[test]
+    fn append_ai_summary_idempotent() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let note = tmp.path().join("note.md");
+        fs::write(&note, "# 2026-W13\n").expect("write");
+
+        append_ai_summary(&note, "サマリA").expect("first");
+        append_ai_summary(&note, "サマリB").expect("second");
+        let content = fs::read_to_string(&note).expect("read");
+        assert!(content.contains("サマリB"));
+        assert!(!content.contains("サマリA"));
+        // Only one heading
+        assert_eq!(content.matches("## AI 週次サマリ").count(), 1);
     }
 }
