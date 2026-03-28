@@ -99,6 +99,13 @@ export function useVault() {
 		return invoke<boolean>("get_ai_availability");
 	}, []);
 
+	const generateWeeklySummary = useCallback(
+		async (week: string): Promise<string> => {
+			return invoke<string>("generate_weekly_summary", { week });
+		},
+		[],
+	);
+
 	const createNote = useCallback(
 		async (kind: NoteKind): Promise<CreateNoteResponse> => {
 			return invoke<CreateNoteResponse>("create_note", {
@@ -127,5 +134,6 @@ export function useVault() {
 		createNote,
 		refreshSummary,
 		getAiAvailability,
+		generateWeeklySummary,
 	};
 }

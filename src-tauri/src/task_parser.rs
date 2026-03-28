@@ -1,4 +1,4 @@
-use chrono::{Datelike, Duration, NaiveDate};
+use chrono::{Datelike, Duration, NaiveDate, Weekday};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -459,6 +459,88 @@ pub fn build_weekly_tasks(vault_root: &Path, week_offset: i32) -> anyhow::Result
         week_start,
         week_end,
         projects,
+    })
+}
+
+// ---- Weekly AI サマリ用タスク収集 ----
+
+#[derive(Debug, Serialize)]
+pub struct WeeklyTaskSummary {
+    pub completed: Vec<CompletedTaskInfo>,
+    pub started: Vec<CompletedTaskInfo>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CompletedTaskInfo {
+    pub text: String,
+    pub project: String,
+    pub done_date: Option<NaiveDate>,
+    pub start: Option<NaiveDate>,
+}
+
+/// `"2026-W13"` 形式の ISO 週文字列を (月曜日, 日曜日) の `NaiveDate` ペアに変換する
+pub fn parse_iso_week(week_str: &str) -> anyhow::Result<(NaiveDate, NaiveDate)> {
+    let parts: Vec<&str> = week_str.split("-W").collect();
+    if parts.len() != 2 {
+        anyhow::bail!("invalid ISO week format: {week_str} (expected YYYY-Www)");
+    }
+
+    let year: i32 = parts[0]
+        .parse()
+        .map_err(|_| anyhow::anyhow!("invalid year in ISO week: {week_str}"))?;
+    let week: u32 = parts[1]
+        .parse()
+        .map_err(|_| anyhow::anyhow!("invalid week number in ISO week: {week_str}"))?;
+
+    let monday = NaiveDate::from_isoywd_opt(year, week, Weekday::Mon)
+        .ok_or_else(|| anyhow::anyhow!("out of range ISO week: {week_str}"))?;
+    let sunday = monday + Duration::days(6);
+
+    Ok((monday, sunday))
+}
+
+/// 指定週の完了・開始タスクを収集する（AI サマリ生成用）
+pub fn collect_weekly_done_tasks(
+    vault_root: &Path,
+    week_start: NaiveDate,
+    week_end: NaiveDate,
+) -> anyhow::Result<WeeklyTaskSummary> {
+    let vault_files = walk_vault_tasks(vault_root)?;
+
+    let mut completed = Vec::new();
+    let mut started = Vec::new();
+
+    for vf in vault_files {
+        let project = Path::new(&vf.rel_path)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("unknown")
+            .to_string();
+
+        for task in vf.tasks {
+            let in_range = |d: NaiveDate| d >= week_start && d <= week_end;
+
+            if task.status == TaskStatus::Done && task.done_date.is_some_and(in_range) {
+                completed.push(CompletedTaskInfo {
+                    text: task.text,
+                    project: project.clone(),
+                    done_date: task.done_date,
+                    start: task.start,
+                });
+            } else if task.status == TaskStatus::InProgress && task.start.is_some_and(in_range) {
+                started.push(CompletedTaskInfo {
+                    text: task.text,
+                    project: project.clone(),
+                    done_date: task.done_date,
+                    start: task.start,
+                });
+            }
+        }
+    }
+
+    Ok(WeeklyTaskSummary {
+        completed,
+        started,
     })
 }
 
@@ -924,5 +1006,102 @@ mod tests {
         assert_eq!(result.len(), 2);
         assert_eq!(result[0].text, "Match");
         assert_eq!(result[1].text, "Child");
+    }
+
+    // ---- parse_iso_week ----
+
+    #[test]
+    fn parse_iso_week_valid() {
+        let (mon, sun) = parse_iso_week("2026-W13").expect("parse");
+        assert_eq!(mon, NaiveDate::from_ymd_opt(2026, 3, 23).expect("date"));
+        assert_eq!(sun, NaiveDate::from_ymd_opt(2026, 3, 29).expect("date"));
+    }
+
+    #[test]
+    fn parse_iso_week_week01() {
+        let (mon, sun) = parse_iso_week("2026-W01").expect("parse");
+        assert_eq!(mon, NaiveDate::from_ymd_opt(2025, 12, 29).expect("date"));
+        assert_eq!(sun, NaiveDate::from_ymd_opt(2026, 1, 4).expect("date"));
+    }
+
+    #[test]
+    fn parse_iso_week_week52() {
+        let (mon, _sun) = parse_iso_week("2025-W52").expect("parse");
+        assert_eq!(mon, NaiveDate::from_ymd_opt(2025, 12, 22).expect("date"));
+    }
+
+    #[test]
+    fn parse_iso_week_invalid_format() {
+        assert!(parse_iso_week("invalid").is_err());
+        assert!(parse_iso_week("2026-13").is_err());
+        assert!(parse_iso_week("2026-W00").is_err());
+        assert!(parse_iso_week("2026-W54").is_err());
+    }
+
+    // ---- collect_weekly_done_tasks ----
+
+    #[test]
+    fn collect_done_tasks_empty_vault() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let mon = NaiveDate::from_ymd_opt(2026, 3, 23).expect("date");
+        let sun = mon + Duration::days(6);
+        let summary = collect_weekly_done_tasks(tmp.path(), mon, sun).expect("collect");
+        assert!(summary.completed.is_empty());
+        assert!(summary.started.is_empty());
+    }
+
+    #[test]
+    fn collect_done_tasks_filters_by_done_date() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let projects = tmp.path().join("10_Projects");
+        fs::create_dir_all(&projects).expect("mkdir");
+
+        let mon = NaiveDate::from_ymd_opt(2026, 3, 23).expect("date");
+        let wed = mon + Duration::days(2);
+        let prev = mon - Duration::days(3);
+
+        fs::write(
+            projects.join("Proj.md"),
+            format!(
+                "- [x] In-week done ✅ {wed}\n- [x] Out-of-week done ✅ {prev}\n- [/] In progress 🛫 {wed}\n"
+            ),
+        )
+        .expect("write");
+
+        let sun = mon + Duration::days(6);
+        let summary = collect_weekly_done_tasks(tmp.path(), mon, sun).expect("collect");
+        assert_eq!(summary.completed.len(), 1);
+        assert_eq!(summary.completed[0].text, "In-week done");
+        assert_eq!(summary.completed[0].project, "Proj");
+        // started: InProgress task with start in range
+        assert_eq!(summary.started.len(), 1);
+        assert_eq!(summary.started[0].text, "In progress");
+    }
+
+    #[test]
+    fn collect_done_tasks_includes_all_folders() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let inbox = tmp.path().join("00_Inbox");
+        let projects = tmp.path().join("10_Projects");
+        fs::create_dir_all(&inbox).expect("mkdir");
+        fs::create_dir_all(&projects).expect("mkdir");
+
+        let mon = NaiveDate::from_ymd_opt(2026, 3, 23).expect("date");
+        let tue = mon + Duration::days(1);
+
+        fs::write(
+            inbox.join("stuff.md"),
+            format!("- [x] Inbox done ✅ {tue}\n"),
+        )
+        .expect("write");
+        fs::write(
+            projects.join("Alpha.md"),
+            format!("- [x] Project done ✅ {mon}\n"),
+        )
+        .expect("write");
+
+        let sun = mon + Duration::days(6);
+        let summary = collect_weekly_done_tasks(tmp.path(), mon, sun).expect("collect");
+        assert_eq!(summary.completed.len(), 2);
     }
 }

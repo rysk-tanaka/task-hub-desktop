@@ -2,7 +2,7 @@
 
 import { ask, open } from "@tauri-apps/plugin-dialog";
 import { open as shellOpen } from "@tauri-apps/plugin-shell";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Header } from "./components/Header";
 import { Sidebar } from "./components/Sidebar";
 import { SummaryView } from "./components/SummaryView";
@@ -23,9 +23,19 @@ export default function App() {
 		setError,
 		setVaultRoot,
 		createNote,
+		getAiAvailability,
+		generateWeeklySummary,
 	} = useVault();
 
+	const [aiAvailable, setAiAvailable] = useState(false);
+
 	const [activeView, setActiveView] = useState<ViewId>("summary");
+
+	useEffect(() => {
+		if (vaultRoot) {
+			getAiAvailability().then(setAiAvailable);
+		}
+	}, [vaultRoot, getAiAvailability]);
 
 	async function handleSelectVault() {
 		try {
@@ -43,10 +53,36 @@ export default function App() {
 			const res = await createNote(kind);
 			const label = kind === "daily" ? "Daily Note" : "Weekly Note";
 			const status = res.created ? "を作成しました" : "は既に存在します";
-			const confirmed = await ask(
-				`${label}${status}。\n${res.path}\n\nObsidian で開きますか？`,
-				{ title: label, kind: "info", okLabel: "開く", cancelLabel: "閉じる" },
-			);
+
+			// Weekly Note + AI 利用可能時はサマリ生成を提案
+			if (kind === "weekly" && aiAvailable) {
+				const generateAi = await ask(
+					`${label}${status}。\nAI 週次サマリを生成しますか？`,
+					{
+						title: label,
+						kind: "info",
+						okLabel: "生成する",
+						cancelLabel: "スキップ",
+					},
+				);
+				if (generateAi) {
+					const weekMatch = res.path.match(/(\d{4}-W\d{2})\.md$/);
+					if (weekMatch) {
+						try {
+							await generateWeeklySummary(weekMatch[1]);
+						} catch (e) {
+							setError(`AI サマリ生成エラー: ${String(e)}`);
+						}
+					}
+				}
+			}
+
+			const confirmed = await ask(`${res.path}\n\nObsidian で開きますか？`, {
+				title: label,
+				kind: "info",
+				okLabel: "開く",
+				cancelLabel: "閉じる",
+			});
 			if (confirmed) {
 				try {
 					const url = `obsidian://open?path=${encodeURIComponent(res.path)}`;
