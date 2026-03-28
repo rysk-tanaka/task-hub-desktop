@@ -2,7 +2,8 @@
 
 import { ask, open } from "@tauri-apps/plugin-dialog";
 import { open as shellOpen } from "@tauri-apps/plugin-shell";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { AiSummaryDialog } from "./components/AiSummaryDialog";
 import { Header } from "./components/Header";
 import { Sidebar } from "./components/Sidebar";
 import { SummaryView } from "./components/SummaryView";
@@ -25,9 +26,15 @@ export default function App() {
 		createNote,
 		getAiAvailability,
 		generateWeeklySummary,
+		saveWeeklySummary,
 	} = useVault();
 
 	const [aiAvailable, setAiAvailable] = useState(false);
+	const [aiPreview, setAiPreview] = useState<{
+		week: string;
+		summary: string | null; // null = 生成中
+		notePath: string;
+	} | null>(null);
 
 	const [activeView, setActiveView] = useState<ViewId>("summary");
 
@@ -47,6 +54,19 @@ export default function App() {
 			setError(String(e));
 		}
 	}
+
+	const openInObsidian = useCallback(async (path: string) => {
+		const confirmed = await ask(`${path}\n\nObsidian で開きますか？`, {
+			title: "Note",
+			kind: "info",
+			okLabel: "開く",
+			cancelLabel: "閉じる",
+		});
+		if (confirmed) {
+			const url = `obsidian://open?path=${encodeURIComponent(path)}`;
+			await shellOpen(url);
+		}
+	}, []);
 
 	async function handleCreateNote(kind: NoteKind) {
 		try {
@@ -68,33 +88,51 @@ export default function App() {
 				if (generateAi) {
 					const weekMatch = res.path.match(/(\d{4}-W\d{2})\.md$/);
 					if (weekMatch) {
+						setAiPreview({
+							week: weekMatch[1],
+							summary: null,
+							notePath: res.path,
+						});
 						try {
-							await generateWeeklySummary(weekMatch[1]);
+							const summaryText = await generateWeeklySummary(weekMatch[1]);
+							setAiPreview((prev) =>
+								prev ? { ...prev, summary: summaryText } : null,
+							);
+							return;
 						} catch (e) {
+							setAiPreview(null);
 							setError(`AI サマリ生成エラー: ${String(e)}`);
 						}
 					}
 				}
 			}
 
-			const confirmed = await ask(`${res.path}\n\nObsidian で開きますか？`, {
-				title: label,
-				kind: "info",
-				okLabel: "開く",
-				cancelLabel: "閉じる",
-			});
-			if (confirmed) {
-				try {
-					const url = `obsidian://open?path=${encodeURIComponent(res.path)}`;
-					await shellOpen(url);
-				} catch (e) {
-					setError(String(e));
-				}
-			}
+			await openInObsidian(res.path);
 		} catch (e) {
 			setError(String(e));
 		}
 	}
+
+	const handleAiConfirm = useCallback(async () => {
+		if (!aiPreview?.summary) return;
+		const { notePath } = aiPreview;
+		try {
+			await saveWeeklySummary(aiPreview.week, aiPreview.summary);
+		} catch (e) {
+			setError(`AI サマリ保存エラー: ${String(e)}`);
+			return; // 保存失敗時はダイアログを閉じない
+		}
+		setAiPreview(null);
+		await openInObsidian(notePath);
+	}, [aiPreview, saveWeeklySummary, setError, openInObsidian]);
+
+	const handleAiCancel = useCallback(async () => {
+		const notePath = aiPreview?.notePath;
+		setAiPreview(null);
+		if (notePath) {
+			await openInObsidian(notePath);
+		}
+	}, [aiPreview, openInObsidian]);
 
 	// Vault 未設定時
 	if (!vaultRoot) {
@@ -169,6 +207,14 @@ export default function App() {
 						))}
 				</main>
 			</div>
+
+			{aiPreview && (
+				<AiSummaryDialog
+					summary={aiPreview.summary}
+					onConfirm={handleAiConfirm}
+					onCancel={handleAiCancel}
+				/>
+			)}
 		</div>
 	);
 }

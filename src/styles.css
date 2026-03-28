@@ -46,6 +46,34 @@ body {
 	user-select: none;
 }
 
+.ai-spinner {
+	width: 28px;
+	height: 28px;
+	border: 3px solid var(--border);
+	border-top-color: var(--accent);
+	border-radius: 50%;
+	animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+.ai-summary-content p {
+	margin: 0 0 0.6em;
+}
+
+.ai-summary-content p:last-child {
+	margin-bottom: 0;
+}
+
+.ai-summary-content ul {
+	margin: 0 0 0.6em;
+	padding-left: 1.4em;
+}
+
 button:hover {
 	opacity: 0.85;
 }

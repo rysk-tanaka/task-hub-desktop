@@ -151,9 +151,15 @@ async fn create_note(
 
 const WEEKLY_SUMMARY_SYSTEM_PROMPT: &str = "\
 あなたはエンジニアの週次振り返りレポートを作成するアシスタントです。\
-以下の完了・進行中タスクリストから、プロジェクトをまたいだ週次の成果と\
-学びを3〜5文の自然な日本語で要約してください。\
-箇条書きは使わず、段落形式で記述してください。";
+以下の完了・進行中タスクリストから、プロジェクトごとの週次サマリを作成してください。\
+\n\
+フォーマット:\n\
+- プロジェクトごとに【プロジェクト名】の見出しで区切る\n\
+- 各プロジェクトの成果を1〜2文で簡潔に述べる\n\
+- 自己言及しない（「今週は…に焦点を当てました」のような書き出しは避ける）\n\
+- 成果を直接述べる\n\
+- 最後に全体を俯瞰した1文を追加する（任意）\n\
+- 自然な日本語で記述する";
 
 const NO_TASKS_MESSAGE: &str = "今週は記録されたタスクがありません。";
 
@@ -191,7 +197,7 @@ fn format_tasks_for_ai(summary: &WeeklyTaskSummary) -> String {
     output
 }
 
-/// 指定週の AI 週次サマリを生成し、Weekly Note に追記する
+/// 指定週の AI 週次サマリを生成して返す（ノートへの書き込みは行わない）
 #[tauri::command]
 async fn generate_weekly_summary(
     week: String,
@@ -220,21 +226,45 @@ async fn generate_weekly_summary(
         task_parser::collect_weekly_done_tasks(&vault_root, week_start, week_end)
             .map_err(|e| e.to_string())?;
 
-    let summary_text = if task_summary.completed.is_empty() && task_summary.started.is_empty() {
-        NO_TASKS_MESSAGE.to_string()
-    } else {
-        let user_prompt = format_tasks_for_ai(&task_summary);
-        let system = WEEKLY_SUMMARY_SYSTEM_PROMPT.to_string();
+    if task_summary.completed.is_empty() && task_summary.started.is_empty() {
+        return Ok(NO_TASKS_MESSAGE.to_string());
+    }
 
-        tokio::task::spawn_blocking(move || ai_bridge::generate(&system, &user_prompt))
-            .await
-            .map_err(|e| e.to_string())??
-    };
+    let user_prompt = format_tasks_for_ai(&task_summary);
+    let system = WEEKLY_SUMMARY_SYSTEM_PROMPT.to_string();
 
-    note_creator::append_ai_summary(&note_path, &summary_text)
-        .map_err(|e| e.to_string())?;
+    tokio::task::spawn_blocking(move || ai_bridge::generate(&system, &user_prompt))
+        .await
+        .map_err(|e| e.to_string())?
+}
 
-    Ok(summary_text)
+/// 生成済みサマリを Weekly Note に追記する
+#[tauri::command]
+async fn save_weekly_summary(
+    week: String,
+    summary: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let vault_root = state
+        .vault_root
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone()
+        .ok_or("Vaultが設定されていません")?;
+
+    // ISO 週形式を検証してパストラバーサルを防止
+    task_parser::parse_iso_week(&week).map_err(|e| e.to_string())?;
+
+    let note_path = note_creator::weekly_note_path(&vault_root, &week);
+    if !note_path.exists() {
+        return Err(format!("Weekly Note が見つかりません: {}", note_path.display()));
+    }
+
+    let today = chrono::Local::now().format("%Y-%m-%d");
+    let with_date = format!("*生成日: {today}*\n\n{summary}");
+
+    note_creator::append_ai_summary(&note_path, &with_date)
+        .map_err(|e| e.to_string())
 }
 
 // ---- 起動時復元 ----
@@ -295,6 +325,7 @@ pub fn run() {
             create_note,
             get_ai_availability,
             generate_weekly_summary,
+            save_weekly_summary,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
