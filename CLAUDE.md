@@ -59,7 +59,8 @@ pnpm exec tsc --noEmit -p tsconfig.app.json
 | `create_note` | Daily/Weekly Note 生成（テンプレート展開、既存なら既存パスを返す） |
 
 | `get_ai_availability` | Apple Intelligence の利用可否を返す |
-| `generate_weekly_summary` | 指定週の完了タスクを AI で要約し Weekly Note に追記 |
+| `generate_weekly_summary` | 指定週の完了タスクを AI で要約して返す（ファイルは更新しない） |
+| `save_weekly_summary` | AI 要約結果を Weekly Note に追記・保存 |
 
 コマンド関数は `lib.rs` 内で非 `pub` にすること（lib/bin 間のマクロ重複を回避するため）。
 

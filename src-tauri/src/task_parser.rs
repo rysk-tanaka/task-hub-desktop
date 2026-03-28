@@ -466,12 +466,12 @@ pub fn build_weekly_tasks(vault_root: &Path, week_offset: i32) -> anyhow::Result
 
 #[derive(Debug, Serialize)]
 pub struct WeeklyTaskSummary {
-    pub completed: Vec<CompletedTaskInfo>,
-    pub started: Vec<CompletedTaskInfo>,
+    pub completed: Vec<WeeklyTaskItem>,
+    pub started: Vec<WeeklyTaskItem>,
 }
 
 #[derive(Debug, Serialize)]
-pub struct CompletedTaskInfo {
+pub struct WeeklyTaskItem {
     pub text: String,
     pub project: String,
     pub done_date: Option<NaiveDate>,
@@ -500,7 +500,7 @@ pub fn parse_iso_week(week_str: &str) -> anyhow::Result<(NaiveDate, NaiveDate)> 
 }
 
 /// 指定週の完了・開始タスクを収集する（AI サマリ生成用）
-pub fn collect_weekly_done_tasks(
+pub fn collect_weekly_tasks(
     vault_root: &Path,
     week_start: NaiveDate,
     week_end: NaiveDate,
@@ -521,14 +521,14 @@ pub fn collect_weekly_done_tasks(
             let in_range = |d: NaiveDate| d >= week_start && d <= week_end;
 
             if task.status == TaskStatus::Done && task.done_date.is_some_and(in_range) {
-                completed.push(CompletedTaskInfo {
+                completed.push(WeeklyTaskItem {
                     text: task.text,
                     project: project.clone(),
                     done_date: task.done_date,
                     start: task.start,
                 });
             } else if task.status == TaskStatus::InProgress && task.start.is_some_and(in_range) {
-                started.push(CompletedTaskInfo {
+                started.push(WeeklyTaskItem {
                     text: task.text,
                     project: project.clone(),
                     done_date: task.done_date,
@@ -1038,14 +1038,14 @@ mod tests {
         assert!(parse_iso_week("2026-W54").is_err());
     }
 
-    // ---- collect_weekly_done_tasks ----
+    // ---- collect_weekly_tasks ----
 
     #[test]
     fn collect_done_tasks_empty_vault() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let mon = NaiveDate::from_ymd_opt(2026, 3, 23).expect("date");
         let sun = mon + Duration::days(6);
-        let summary = collect_weekly_done_tasks(tmp.path(), mon, sun).expect("collect");
+        let summary = collect_weekly_tasks(tmp.path(), mon, sun).expect("collect");
         assert!(summary.completed.is_empty());
         assert!(summary.started.is_empty());
     }
@@ -1069,7 +1069,7 @@ mod tests {
         .expect("write");
 
         let sun = mon + Duration::days(6);
-        let summary = collect_weekly_done_tasks(tmp.path(), mon, sun).expect("collect");
+        let summary = collect_weekly_tasks(tmp.path(), mon, sun).expect("collect");
         assert_eq!(summary.completed.len(), 1);
         assert_eq!(summary.completed[0].text, "In-week done");
         assert_eq!(summary.completed[0].project, "Proj");
@@ -1101,7 +1101,7 @@ mod tests {
         .expect("write");
 
         let sun = mon + Duration::days(6);
-        let summary = collect_weekly_done_tasks(tmp.path(), mon, sun).expect("collect");
+        let summary = collect_weekly_tasks(tmp.path(), mon, sun).expect("collect");
         assert_eq!(summary.completed.len(), 2);
     }
 }

@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import { type CSSProperties, useCallback, useEffect } from "react";
 
 /** AI 週次サマリのプレビュー・確認ダイアログ */
 export function AiSummaryDialog({
@@ -12,10 +12,31 @@ export function AiSummaryDialog({
 }) {
 	const loading = summary === null;
 
+	const handleKeyDown = useCallback(
+		(e: KeyboardEvent) => {
+			if (e.key === "Escape" && !loading) {
+				onCancel();
+			}
+		},
+		[loading, onCancel],
+	);
+
+	useEffect(() => {
+		document.addEventListener("keydown", handleKeyDown);
+		return () => document.removeEventListener("keydown", handleKeyDown);
+	}, [handleKeyDown]);
+
 	return (
 		<div style={styles.overlay}>
-			<div style={styles.dialog}>
-				<h2 style={styles.heading}>AI 週次サマリ</h2>
+			<div
+				style={styles.dialog}
+				role="dialog"
+				aria-modal="true"
+				aria-labelledby="ai-summary-title"
+			>
+				<h2 id="ai-summary-title" style={styles.heading}>
+					AI 週次サマリ
+				</h2>
 
 				{loading ? (
 					<div style={styles.loadingContainer}>
@@ -66,7 +87,17 @@ function markdownToHtml(md: string): string {
 	for (const line of lines) {
 		const trimmed = line.trim();
 
-		if (trimmed.startsWith("- ")) {
+		const headingMatch = /^(#{1,3})\s+(.+)$/.exec(trimmed);
+		if (headingMatch) {
+			if (inList) {
+				parts.push("</ul>");
+				inList = false;
+			}
+			const level = headingMatch[1].length;
+			parts.push(
+				`<h${level + 1}>${escapeHtml(headingMatch[2])}</h${level + 1}>`,
+			);
+		} else if (trimmed.startsWith("- ")) {
 			if (!inList) {
 				parts.push("<ul>");
 				inList = true;

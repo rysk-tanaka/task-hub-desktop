@@ -61,6 +61,14 @@ body {
 	}
 }
 
+.ai-summary-content h2,
+.ai-summary-content h3,
+.ai-summary-content h4 {
+	margin: 0.8em 0 0.3em;
+	font-size: var(--font-sm);
+	font-weight: 600;
+}
+
 .ai-summary-content p {
 	margin: 0 0 0.6em;
 }

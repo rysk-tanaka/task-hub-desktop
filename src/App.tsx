@@ -40,7 +40,11 @@ export default function App() {
 
 	useEffect(() => {
 		if (vaultRoot) {
-			getAiAvailability().then(setAiAvailable);
+			getAiAvailability()
+				.then(setAiAvailable)
+				.catch(() => setAiAvailable(false));
+		} else {
+			setAiAvailable(false);
 		}
 	}, [vaultRoot, getAiAvailability]);
 
@@ -55,18 +59,25 @@ export default function App() {
 		}
 	}
 
-	const openInObsidian = useCallback(async (path: string) => {
-		const confirmed = await ask(`${path}\n\nObsidian で開きますか？`, {
-			title: "Note",
-			kind: "info",
-			okLabel: "開く",
-			cancelLabel: "閉じる",
-		});
-		if (confirmed) {
-			const url = `obsidian://open?path=${encodeURIComponent(path)}`;
-			await shellOpen(url);
-		}
-	}, []);
+	const openInObsidian = useCallback(
+		async (path: string) => {
+			try {
+				const confirmed = await ask(`${path}\n\nObsidian で開きますか？`, {
+					title: "Note",
+					kind: "info",
+					okLabel: "開く",
+					cancelLabel: "閉じる",
+				});
+				if (confirmed) {
+					const url = `obsidian://open?path=${encodeURIComponent(path)}`;
+					await shellOpen(url);
+				}
+			} catch (e) {
+				setError(String(e));
+			}
+		},
+		[setError],
+	);
 
 	async function handleCreateNote(kind: NoteKind) {
 		try {

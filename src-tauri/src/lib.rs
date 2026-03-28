@@ -204,7 +204,7 @@ async fn generate_weekly_summary(
     state: State<'_, AppState>,
 ) -> Result<String, String> {
     if !ai_bridge::is_available() {
-        return Err("AI features are not available on this system".to_string());
+        return Err("この環境では AI 機能を利用できません".to_string());
     }
 
     let vault_root = state
@@ -223,7 +223,7 @@ async fn generate_weekly_summary(
     }
 
     let task_summary =
-        task_parser::collect_weekly_done_tasks(&vault_root, week_start, week_end)
+        task_parser::collect_weekly_tasks(&vault_root, week_start, week_end)
             .map_err(|e| e.to_string())?;
 
     if task_summary.completed.is_empty() && task_summary.started.is_empty() {
