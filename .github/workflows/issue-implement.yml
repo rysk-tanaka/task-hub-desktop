@@ -16,7 +16,7 @@ jobs:
       pull-requests: write
       issues: write
       id-token: write
-    uses: rysk-tanaka/workflows/.github/workflows/issue-implement.yml@main
+    uses: rysk-tanaka/workflows/.github/workflows/issue-implement.yml@bfb50f6c42743fa0b587728186ae08143e7357dd # main
     with:
       package_manager: pnpm
       claude_args: '--max-turns 40 --model claude-opus-4-6 --allowed-tools "Read,Edit,Write,Glob,Grep,Bash(git fetch origin *),Bash(git add *),Bash(git commit *),Bash(git checkout *),Bash(git push origin implement-issue-*),Bash(git status),Bash(git status *),Bash(git diff),Bash(git diff *),Bash(git log *),Bash(gh issue view *),Bash(gh pr create * --body-file *),Bash(gh pr edit * --add-label *),Bash(pnpm install),Bash(pnpm install *),Bash(pnpm test),Bash(pnpm test *),Bash(pnpm lint),Bash(pnpm lint *),Bash(pnpm format),Bash(pnpm format *),Bash(pnpm cargo:test),Bash(pnpm cargo:test *),Bash(pnpm cargo:clippy),Bash(pnpm cargo:clippy *)"'
