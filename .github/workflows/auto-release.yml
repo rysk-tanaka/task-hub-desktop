@@ -27,7 +27,7 @@ jobs:
     needs: validate-branch
     permissions:
       contents: write
-    uses: rysk-tanaka/workflows/.github/workflows/release-on-version-change.yml@a7a519dbcf7bd1887d4b9d4e35edf0290937bf6c # main
+    uses: rysk-tanaka/workflows/.github/workflows/release-on-version-change.yml@b0e54ec19d2e5140d4afa69943c0527c79a48903 # main
     with:
       version_source: command
       version_command: "awk '/^\\[package\\]$/{p=1;next}/^\\[/{p=0}p&&/^version[[:space:]]*=/{gsub(/\"/,\"\",$3);print $3;exit}' src-tauri/Cargo.toml"
