@@ -57,7 +57,6 @@ pnpm exec tsc --noEmit -p tsconfig.app.json
 | `get_vault_summary` | GTD サマリー（Inbox 件数・期限タスク・プロジェクト進捗） |
 | `get_weekly_tasks` | 指定週のプロジェクト別タスク取得（週間ビュー用） |
 | `create_note` | Daily/Weekly Note 生成（テンプレート展開、既存なら既存パスを返す） |
-
 | `get_ai_availability` | Apple Intelligence の利用可否を返す |
 | `generate_weekly_summary` | 指定週の完了タスクを AI で要約して返す（ファイルは更新しない） |
 | `save_weekly_summary` | AI 要約結果を Weekly Note に追記・保存 |
