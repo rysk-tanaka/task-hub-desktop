@@ -38,6 +38,10 @@ jobs:
   upload-artifacts:
     needs: create-release
     if: needs.create-release.outputs.released == 'true'
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     strategy:
@@ -67,6 +71,20 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
       - run: pnpm install --frozen-lockfile
       - run: pnpm tauri build
+      # Lets anyone check that a downloaded installer was built by this workflow:
+      # gh attestation verify <file> --owner rysk-tanaka
+      - name: Attest the build provenance (macOS)
+        if: runner.os == 'macOS'
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: src-tauri/target/release/bundle/dmg/*.dmg
+      - name: Attest the build provenance (Linux)
+        if: runner.os == 'Linux'
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: |
+            src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/appimage/*.AppImage
       - name: Upload macOS artifacts
         if: runner.os == 'macOS'
         env:
