@@ -11,6 +11,7 @@
 		"pre-commit",
 		"custom.regex"
 	],
+	"lockFileMaintenance": { "enabled": true },
 	"packageRules": [
 		{
 			"description": "The shared preset automerges every minor/patch update; GitHub Actions updates stay manual here",
