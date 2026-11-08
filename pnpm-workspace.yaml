@@ -1,1 +1,4 @@
 approveBuilds: esbuild
+# Renovate's minimumReleaseAge does not cover lock file maintenance, so pnpm itself
+# must refuse versions published less than 3 days (4320 minutes) ago, transitive ones included.
+minimumReleaseAge: 4320
